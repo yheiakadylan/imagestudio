@@ -1,0 +1,218 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Image Studio - Mockup Helper</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.23.0",
+    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+  <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+        :host, :root {
+          --primary-color:#6a11cb; --secondary-color:#2575fc;
+          --background-dark:#0d0c1c; --panel-bg:rgba(255,255,255,.08);
+          --border-color:rgba(255,255,255,.18); --text-light:#e5e7eb; --text-muted:#9ca3af;
+        }
+        :host{ all:initial; font-family:'Inter',system-ui,-apple-system,Segoe UI,Roboto,Arial; font-size:14px; }
+        .wrap{ width:100%; height:100%; background:var(--background-dark); color:var(--text-light);
+          border-radius:18px; box-shadow:0 18px 48px rgba(0,0,0,.45);
+          display:flex; flex-direction:column; position:relative; overflow:hidden;
+          border:1px solid rgba(255,255,255,.12); }
+        .wrap::before{ content:""; position:absolute; inset:-25%; background:conic-gradient(from 0deg,#ff3eec,#ffd23f,#00d4ff,#7cffcb,#ff3eec);
+          filter:blur(72px) saturate(140%); animation:spin 18s linear infinite; opacity:.10; pointer-events:none; }
+        @keyframes spin{ to{ transform:rotate(1turn) } }
+        header{ padding:12px 16px; border-bottom:1px solid #1f2a44; display:flex; justify-content:space-between; align-items:center; }
+        .title{ font-weight:900; font-size:1.2rem; letter-spacing:.3px;
+          background:linear-gradient(90deg,#ff3eec,#ffd23f,#00d4ff,#7cffcb,#f5576c);
+          -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-size:300% 100%; animation:flow 14s linear infinite; }
+        @keyframes flow{ to{ background-position:300% 0 } }
+        .btn{ padding:9px 14px; border-radius:12px; cursor:pointer; font-weight:700; border:none; position:relative; overflow:hidden }
+        .btn:before{ content:""; position:absolute; inset:0; background:rgba(255,255,255,.12); transform:scale(0); transition:.3s; border-radius:12px }
+        .btn:hover:before{ transform:scale(1) }
+        .btn-primary{ background:linear-gradient(45deg,var(--primary-color),var(--secondary-color)); color:#fff }
+        .btn.ghost{ background:var(--panel-bg); color:var(--text-light); border:1px solid var(--border-color) }
+        .btn.warn{ background:#ef4444; color:#fff }
+        .btn[disabled]{ opacity:.45; pointer-events:none }
+
+        /* ===== 3 COLUMN LAYOUT ===== */
+        .body{
+          flex:1; display:grid; gap:14px; padding:14px;
+          grid-template-columns: 0.9fr 0.7fr 1.6fr;  /* Art | Cut | Mockup */
+          overflow:hidden;
+        }
+        .col{ background:var(--panel-bg); border:1px solid var(--border-color); border-radius:14px; padding:14px; display:flex; flex-direction:column; min-height:0; backdrop-filter:blur(10px) }
+        .col.art{ overflow:auto } /* scroll riêng cho art */
+        .cap{ font-weight:800; margin:8px 0 6px; font-size:1.05rem }
+
+        .preview{
+          position:relative; height:34vh; min-height:240px; display:flex; align-items:center; justify-content:center;
+          border-radius:12px; background:repeating-conic-gradient(#1a1a2e 0% 25%, #2a2a44 0% 50%) 0/20px 20px;
+          border:1px solid #33334d; overflow:hidden; animation:glow 3.6s ease-in-out infinite;
+        }
+        @keyframes glow{ 0%,100%{ box-shadow:0 0 0 1px rgba(255,255,255,.08) inset, 0 8px 24px rgba(0,0,0,.35) } 50%{ box-shadow:0 0 0 1px rgba(255,255,255,.18) inset, 0 18px 36px rgba(0,0,0,.45) } }
+        .preview img{ max-width:100%; max-height:100%; object-fit:contain; border-radius:10px; display:block; cursor:zoom-in }
+
+        .samples{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px }
+        .sItem{ position:relative } .sq{ width:100%; aspect-ratio:1/1; border:2px solid var(--border-color); border-radius:10px;
+          background:repeating-conic-gradient(#1a1a2e 0% 25%, #2a2a44 0% 50%) 0/20px 20px; display:flex; align-items:center; justify-content:center; overflow:hidden }
+        .sq>img{ width:100%; height:100%; object-fit:contain; display:block }
+        .sDel{ position:absolute; top:6px; right:6px; background:#ef4444; color:#fff; border:none; border-radius:8px; font-size:.7em; padding:4px 8px; cursor:pointer }
+
+        /* DIE-CUT column (đơn giản) */
+        .cutPrev{ position:relative; height:32vh; min-height:220px; border:1px dashed rgba(255,255,255,.25); border-radius:12px;
+          background:repeating-conic-gradient(#1a1a2e 0% 25%, #2a2a44 0% 50%) 0/20px 20px; display:flex; align-items:center; justify-content:center; overflow:hidden }
+        .cutPrev canvas{ max-width:100%; max-height:100%; display:block; border-radius:10px; cursor:zoom-in }
+        .cutInfo{ margin-top:6px; font-size:.85em; color:#9ca3af }
+
+        /* MOCKUP column */
+        .outWrap{ flex:1; min-height:0; display:flex; flex-direction:column }
+        .outGrid{ flex:1; min-height:0; overflow:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:12px; grid-auto-rows:minmax(210px,auto) }
+        .thumb{ width:100%; height:100%; object-fit:cover; background:repeating-conic-gradient(#1a1a2e 0% 25%, #2a2a44 0% 50%) 0/20px 20px; border:1px solid rgba(255,255,255,.2); border-radius:12px; display:block; cursor:pointer }
+
+        /* Controls */
+        .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap }
+        .row.inline-2{ display:grid; grid-template-columns:min-content 165px min-content 140px; gap:10px; align-items:center }
+        .row.inline-3{ display:grid; grid-template-columns:1fr 220px 120px; gap:10px; align-items:center }
+        .row.compact{ display:grid; grid-template-columns:1fr max-content; gap:10px; align-items:center }
+        select,input,textarea{
+          width:100%; padding:10px; border-radius:10px; border:1px solid rgba(255,255,255,.2);
+          background:rgba(0,0,0,.2); color:var(--text-light); transition:border-color .2s, box-shadow .2s; box-sizing:border-box;
+        }
+        textarea{ resize:none; height:88px; min-height:88px; box-sizing:border-box }
+
+        /* Status / Progress */
+        .status{ position:absolute; left:50%; top:14px; transform:translateX(-50%) scale(.9); height:38px;
+          display:flex; gap:10px; align-items:center; justify-content:center; color:#fff; font-weight:800;
+          background:var(--panel-bg); border:1px solid var(--border-color); border-radius:12px; padding:0 16px;
+          opacity:0; pointer-events:none; transition:opacity .3s, transform .3s; backdrop-filter:blur(10px) }
+        .status.show{ opacity:1; transform:translateX(-50%) scale(1) }
+        .status.ok{ background:#065f46; border-color:#10b981 } .status.err{ background:#7f1d1d; border-color:#ef4444 }
+        .spinner{ width:16px; height:16px; border-radius:999px; border:2px solid rgba(255,255,255,.35); border-top-color:#fff; animation:sp 1s linear infinite }
+        @keyframes sp{ to{ transform:rotate(360deg) } }
+
+        .pmeta{ display:flex; gap:10px; align-items:center; justify-content:space-between; color:#9ca3af; font-size:.8em; margin-top:8px }
+        .progress{ height:10px; border-radius:999px; background:rgba(255,255,255,.1); overflow:hidden; border:1px solid rgba(255,255,255,.2) }
+        .progress>div{ height:100%; width:0%; background-image:linear-gradient(90deg, rgba(255,255,255,.25) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.25) 50%, rgba(255,255,255,.25) 75%, transparent 75%, transparent),
+                                        linear-gradient(90deg,#f093fb,#f5576c);
+                        background-size:28px 10px,100% 100%; animation:barber 1s linear infinite; transition:width .3s }
+        @keyframes barber{ to{ background-position:28px 0, 0 0 } }
+
+        /* Sparkles */
+        #fx{ position:fixed; inset:0; pointer-events:none; z-index:2147483648 }
+        .sparkle{ position:absolute; width:8px; height:8px; border-radius:50%; background:radial-gradient(circle at 30% 30%, #fff, rgba(255,255,255,.2) 60%, transparent 70%);
+          box-shadow:0 0 10px currentColor, 0 0 18px currentColor; animation:pop .9s ease-out forwards }
+        @keyframes pop{ 0%{ transform:translate(0,0) scale(.6); opacity:1 } 80%{ opacity:1 } 100%{ transform:translate(var(--dx),var(--dy)) scale(0); opacity:0 } }
+
+        /* Viewer & Dialog */
+        .viewer{ position:fixed; inset:0; background:rgba(0,0,0,.85); display:none; align-items:center; justify-content:center; z-index:2147483647; backdrop-filter:blur(10px) }
+        .viewer img{ max-width:94vw; max-height:94vh; border-radius:16px; box-shadow:0 15px 40px rgba(0,0,0,.6) }
+        .dlg{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:2147483647; background:rgba(0,0,0,.6); backdrop-filter:blur(5px) }
+        .dlg .box{ width:520px; max-width:90vw; background:var(--background-dark); border:1px solid var(--border-color); border-radius:16px; padding:20px }
+
+        /* Context menu + Expanded overlay */
+        .ctxmenu{ position:fixed; z-index:2147483649; background:var(--panel-bg); border:1px solid var(--border-color);
+          border-radius:10px; padding:6px; display:none; min-width:160px; backdrop-filter:blur(10px) }
+        .ctxmenu button{ width:100%; text-align:left; padding:8px 10px; border:none; background:transparent; color:var(--text-light); border-radius:8px; cursor:pointer }
+        .ctxmenu button:hover{ background:rgba(255,255,255,.12) }
+
+        .expandedOverlay{ position:absolute; inset:64px 14px 14px 14px; z-index:7; pointer-events:none }
+        .expandedOverlay svg{ position:absolute; inset:0; width:100%; height:100% }
+        .xnodes{ position:absolute; inset:0; pointer-events:none }
+        .xnode{ pointer-events:auto; position:absolute; top:8px; left:8px; background:var(--panel-bg); border:1px solid var(--border-color); border-radius:12px; box-shadow:0 8px 24px rgba(0,0,0,.35) }
+        .xnode header{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 8px; cursor:move; border-bottom:1px solid rgba(255,255,255,.12); font-weight:700; font-size:.9em }
+        .xnode .actions button{ margin-left:6px }
+        .xnode img{ display:block; max-width:420px; max-height:300px; border-bottom-left-radius:12px; border-bottom-right-radius:12px }
+        /* Toggle switch */
+        .toggle{
+          width:44px; height:24px; border-radius:999px;
+          background:rgba(255,255,255,.18);
+          border:1px solid var(--border-color);
+          position:relative; cursor:pointer; transition:.2s;
+        }
+        .toggle::after{
+          content:""; width:18px; height:18px; border-radius:999px;
+          position:absolute; top:2px; left:2px; background:#e5e7eb;
+          box-shadow:0 1px 2px rgba(0,0,0,.35); transition:.2s;
+        }
+        .toggle.on{
+          background:linear-gradient(45deg,var(--primary-color),var(--secondary-color));
+          border-color:transparent;
+        }
+        .toggle.on::after{ left:24px; background:#fff; }
+        .row.inline-2{ margin-bottom:6px }
+        /* Responsive */
+        @media (max-width:1400px){
+          .body{ grid-template-columns: 1.2fr 0.8fr; grid-auto-rows: minmax(0,1fr) }
+          .col.mock{ grid-column: 1 / -1 }
+        }
+        @media (max-width:900px){
+          .body{ grid-template-columns: 1fr; }
+          .preview{ height:30vh } .cutPrev{ height:28vh }
+        }
+          /* ==== Pretty Scrollbars (WebKit/Blink) ==== */
+        /* để tránh layout shift khi hiện thanh cuộn */
+        :host, .wrap, .col, .outGrid, .samples, .preview, textarea, #artRefList, #sampleList {
+          scrollbar-gutter: stable both-edges;
+        }
+
+        /* chiều ngang / dọc của thanh */
+        *::-webkit-scrollbar {
+          width: 10px;
+          height: 10px;
+        }
+
+        /* track (nền) */
+        *::-webkit-scrollbar-track {
+          background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+          border-radius: 999px;
+          box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+        }
+
+        /* thumb (núm kéo) */
+        *::-webkit-scrollbar-thumb {
+          border-radius: 999px;
+          background: linear-gradient(180deg, #6a11cb, #2575fc);
+          box-shadow:
+            0 0 0 1px rgba(255,255,255,.18) inset,
+            0 2px 8px rgba(37,117,252,.35);
+          border: 2px solid rgba(0,0,0,.25); /* tạo khoảng cách với track */
+        }
+
+        /* hover/active */
+        *::-webkit-scrollbar-thumb:hover {
+          background: linear-gradient(180deg, #7a2cf0, #2f89ff);
+          box-shadow:
+            0 0 0 1px rgba(255,255,255,.22) inset,
+            0 3px 10px rgba(122,44,240,.45);
+        }
+        *::-webkit-scrollbar-thumb:active {
+          background: linear-gradient(180deg, #f093fb, #f5576c);
+          box-shadow:
+            0 0 0 1px rgba(255,255,255,.28) inset,
+            0 4px 14px rgba(245,87,108,.5);
+        }
+      </style>
+</html>
