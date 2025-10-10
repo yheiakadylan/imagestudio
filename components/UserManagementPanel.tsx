@@ -111,7 +111,7 @@ const UserManagementPanel: React.FC = () => {
                                     {u.role}
                                 </span>
                                 <p className="text-sm text-gray-400 truncate">{apiKeys.find(k => k.id === u.apiKeyId)?.name || 'No Key'}</p>
-                                <div className="text-right space-x-2">
+                                <div className="text-right space-x-2" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
                                     <Button variant="ghost" className="!text-xs !px-2 !py-1" onClick={() => handleSelectForEdit(u)}>Edit</Button>
                                     <Button variant="warn" className="!text-xs !px-2 !py-1" onClick={() => handleDeleteUser(u.id)} disabled={u.id === user.id}>
                                         Remove

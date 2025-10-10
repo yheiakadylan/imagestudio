@@ -47,6 +47,14 @@ const ImageLogModal: React.FC<ImageLogModalProps> = ({ isOpen, onClose, results,
         });
     };
 
+    const handleSelectAll = () => {
+        setSelectedIds(new Set(results.map(r => r.id)));
+    };
+
+    const handleDeselectAll = () => {
+        setSelectedIds(new Set());
+    };
+
     return (
         <div 
             className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] backdrop-blur-lg animate-fade-in"
@@ -56,9 +64,15 @@ const ImageLogModal: React.FC<ImageLogModalProps> = ({ isOpen, onClose, results,
                 className="bg-gray-900/80 border border-white/20 rounded-2xl w-full max-w-6xl h-[90vh] flex flex-col"
                 onClick={e => e.stopPropagation()}
             >
-                <header className="flex-shrink-0 flex items-center justify-between p-4 border-b border-white/10">
+                <header className="flex-shrink-0 flex items-center justify-between p-4 border-b border-white/10 flex-wrap gap-y-2">
                     <h2 className="text-2xl font-bold">Image Generation Log</h2>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
+                        <Button variant="ghost" onClick={handleSelectAll} disabled={results.length === 0}>
+                            Select All
+                        </Button>
+                        <Button variant="ghost" onClick={handleDeselectAll} disabled={selectedIds.size === 0}>
+                            Deselect All
+                        </Button>
                         <Button variant="ghost" onClick={handleDownloadSelected} disabled={selectedIds.size === 0}>
                             Download ({selectedIds.size})
                         </Button>

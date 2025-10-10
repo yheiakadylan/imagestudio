@@ -47,7 +47,7 @@ const PromptTemplatePanel: React.FC = () => {
             <h3 className="text-xl font-bold text-white mb-4">Mockup Prompt Templates</h3>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Editor */}
-                <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col gap-4">
+                <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col gap-4" style={{maxHeight:400 }}>
                     <h4 className="font-bold">{editing.id ? 'Edit Template' : 'Add New Template'}</h4>
                     <div>
                         <label className="text-sm text-gray-400 mb-1 block">Template Name</label>
