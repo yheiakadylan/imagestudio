@@ -1,51 +1,72 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ApiKey } from '../types';
+import { db } from '../services/firebase';
+import {
+    collection,
+    query,
+    orderBy,
+    getDocs,
+    addDoc,
+    doc,
+    updateDoc,
+    deleteDoc
+} from 'firebase/firestore';
 
-const STORAGE_KEY = 'API_KEY_LIST';
+const COLLECTION_NAME = 'api_keys';
 
 export function useApiKeys() {
     const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
 
-    useEffect(() => {
+    const loadApiKeys = useCallback(async () => {
         try {
-            const item = localStorage.getItem(STORAGE_KEY);
-            const parsedItems = item ? JSON.parse(item) : [];
-            setApiKeys(Array.isArray(parsedItems) ? parsedItems : []);
+            const q = query(collection(db, COLLECTION_NAME), orderBy('name', 'asc'));
+            const querySnapshot = await getDocs(q);
+            const items = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ApiKey));
+            setApiKeys(items);
         } catch (error) {
-            console.error(`Error reading ${STORAGE_KEY} from localStorage`, error);
+            console.error(`Error reading from collection ${COLLECTION_NAME}:`, error);
             setApiKeys([]);
         }
     }, []);
-    
-    const saveApiKeys = useCallback((newKeys: ApiKey[]) => {
+
+    useEffect(() => {
+        loadApiKeys();
+    }, [loadApiKeys]);
+
+    const addApiKey = useCallback(async (newKeyData: Omit<ApiKey, 'id'>) => {
         try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(newKeys));
-            setApiKeys(newKeys);
+            const docRef = await addDoc(collection(db, COLLECTION_NAME), newKeyData);
+            const newKey = { ...newKeyData, id: docRef.id };
+            setApiKeys(prev => [...prev, newKey].sort((a, b) => a.name.localeCompare(b.name)));
+            return newKey;
         } catch (error) {
-            console.error(`Error saving ${STORAGE_KEY} to localStorage`, error);
+            console.error(`Error adding to collection ${COLLECTION_NAME}:`, error);
+            throw error;
         }
     }, []);
 
-    const addApiKey = useCallback((newKeyData: Omit<ApiKey, 'id'>) => {
-        const newKey = {
-            ...newKeyData,
-            id: `${STORAGE_KEY}-${Date.now()}`,
-        };
-        saveApiKeys([...apiKeys, newKey]);
-        return newKey;
-    }, [apiKeys, saveApiKeys]);
-    
-    const updateApiKey = useCallback((id: string, updates: Partial<ApiKey>) => {
-        const newKeys = apiKeys.map(k => k.id === id ? { ...k, ...updates } : k);
-        saveApiKeys(newKeys);
-    }, [apiKeys, saveApiKeys]);
-
-    const deleteApiKey = useCallback((id: string) => {
-        if (window.confirm('Are you sure you want to delete this API key?')) {
-            const newKeys = apiKeys.filter(k => k.id !== id);
-            saveApiKeys(newKeys);
+    const updateApiKey = useCallback(async (id: string, updates: Partial<Omit<ApiKey, 'id'>>) => {
+        try {
+            const docRef = doc(db, COLLECTION_NAME, id);
+            await updateDoc(docRef, updates);
+            setApiKeys(prev => prev.map(k => k.id === id ? { ...k, ...updates } : k).sort((a, b) => a.name.localeCompare(b.name)));
+        } catch (error) {
+            console.error(`Error updating document in ${COLLECTION_NAME}:`, error);
+            throw error;
         }
-    }, [apiKeys, saveApiKeys]);
+    }, []);
+
+    const deleteApiKey = useCallback(async (id: string) => {
+        if (window.confirm('Are you sure you want to delete this API key?')) {
+            try {
+                await deleteDoc(doc(db, COLLECTION_NAME, id));
+                setApiKeys(prev => prev.filter(k => k.id !== id));
+            } catch (error) {
+                console.error(`Error deleting from collection ${COLLECTION_NAME}:`, error);
+                throw error;
+            }
+        }
+    }, []);
 
     return { apiKeys, addApiKey, updateApiKey, deleteApiKey };
 }

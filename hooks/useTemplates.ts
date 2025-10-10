@@ -65,7 +65,8 @@ export function useTemplates<T extends BaseTemplate>(collectionName: string) {
 
     const updateTemplate = useCallback(async (id: string, updates: Partial<Omit<T, 'id'>>) => {
         try {
-            await updateDoc(doc(db, collectionName, id), updates);
+            const docRef = doc(db, collectionName, id);
+            await updateDoc(docRef, updates);
             // Optimistic update in state
             setTemplates(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
         } catch (error) {

@@ -1,8 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { LogEntry } from '../types';
 import { db } from '../services/firebase';
-import firebase from 'firebase/app';
-import 'firebase/firestore';
+import {
+    collection,
+    query,
+    orderBy,
+    getDocs,
+    Timestamp,
+    doc,
+    setDoc,
+    writeBatch,
+} from 'firebase/firestore';
+import { uploadDataUrlToStorage } from '../utils/fileUtils';
 
 
 const COLLECTION_NAME = 'generation_log';
@@ -13,15 +22,12 @@ export function useImageLog() {
     useEffect(() => {
         async function loadLog() {
             try {
-                // FIX: Use Firebase v8 syntax
-                const q = db.collection(COLLECTION_NAME).orderBy('createdAt', 'desc');
-                // FIX: Use Firebase v8 syntax
-                const querySnapshot = await q.get();
+                const q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'));
+                const querySnapshot = await getDocs(q);
                 const storedLog = querySnapshot.docs.map(doc => {
                     const data = doc.data();
                     // Convert Firestore Timestamp to milliseconds for consistency
-                    // FIX: Use Firebase v8 Timestamp type
-                    const createdAt = data.createdAt instanceof firebase.firestore.Timestamp 
+                    const createdAt = data.createdAt instanceof Timestamp 
                         ? data.createdAt.toMillis() 
                         : data.createdAt;
                     return { ...data, id: doc.id, createdAt } as LogEntry;
@@ -37,11 +43,18 @@ export function useImageLog() {
 
     const addResultToLog = useCallback(async (result: LogEntry) => {
         try {
-            // Use set with a specific ID to preserve the client-generated ID
-            // FIX: Use Firebase v8 syntax
-            await db.collection(COLLECTION_NAME).doc(result.id).set(result);
-            // Optimistically update the local state and re-sort
-            setLog(prevLog => [result, ...prevLog].sort((a, b) => b.createdAt - a.createdAt));
+            // Upload full-resolution image to Firebase Storage instead of downscaling.
+            const storagePath = `generation_log/${result.id}.png`;
+            const downloadUrl = await uploadDataUrlToStorage(result.dataUrl, storagePath);
+
+            // Prepare the log entry with the storage URL.
+            const resultForFirestore = { ...result, dataUrl: downloadUrl };
+
+            // Save the log entry with the URL to Firestore.
+            await setDoc(doc(db, COLLECTION_NAME, result.id), resultForFirestore);
+            
+            // Optimistically update the local state with the new entry containing the URL.
+            setLog(prevLog => [resultForFirestore, ...prevLog].sort((a, b) => b.createdAt - a.createdAt));
         } catch (error) {
             console.error("Failed to add item to Firestore log", error);
         }
@@ -51,11 +64,9 @@ export function useImageLog() {
         if (idsToDelete.length === 0) return;
         try {
             // Use a batch write for efficient and atomic deletion
-            // FIX: Use Firebase v8 syntax
-            const batch = db.batch();
+            const batch = writeBatch(db);
             idsToDelete.forEach(id => {
-                // FIX: Use Firebase v8 syntax
-                const docRef = db.collection(COLLECTION_NAME).doc(id);
+                const docRef = doc(db, COLLECTION_NAME, id);
                 batch.delete(docRef);
             });
             await batch.commit();

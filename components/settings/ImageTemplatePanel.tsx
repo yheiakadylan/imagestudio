@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useTemplates } from '../hooks/useTemplates';
 import { ArtRef, Sample } from '../../types';
 import Button from '../common/Button';
-import { fileToBase64, readImagesFromClipboard } from '../../utils/fileUtils';
+import { fileToBase64, readImagesFromClipboard, uploadDataUrlToStorage } from '../../utils/fileUtils';
 
 type ImageTemplate = ArtRef | Sample;
 
@@ -22,8 +22,10 @@ const ImageTemplatePanel = <T extends ImageTemplate>({ storageKey, title }: Imag
         }
         for (let i = 0; i < dataUrls.length; i++) {
             const dataUrl = dataUrls[i];
+            const storagePath = `${storageKey}/${baseName.replace(/\s/g, '_')}-${Date.now()}-${i}.png`;
+            const downloadUrl = await uploadDataUrlToStorage(dataUrl, storagePath);
             const templateName = dataUrls.length > 1 ? `${baseName} ${i + 1}` : baseName;
-            await addTemplate({ name: templateName, dataUrl } as any);
+            await addTemplate({ name: templateName, dataUrl: downloadUrl } as any);
         }
         setName('');
     };

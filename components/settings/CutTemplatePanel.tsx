@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useTemplates } from '../hooks/useTemplates';
 import { CutTemplate } from '../../types';
 import Button from '../common/Button';
-import { fileToBase64, readImagesFromClipboard } from '../../utils/fileUtils';
+import { fileToBase64, readImagesFromClipboard, uploadDataUrlToStorage } from '../../utils/fileUtils';
 
 const CutTemplatePanel: React.FC = () => {
     const { templates, addTemplate, deleteTemplate, updateTemplate } = useTemplates<CutTemplate>('DIECUT_TEMPLATES');
@@ -26,7 +26,9 @@ const CutTemplatePanel: React.FC = () => {
             const svgText = await file.text();
             await handleAdd(baseName, { svgText });
         } else if (file.type === "image/png") {
-            const pngMask = await fileToBase64(file);
+            const pngMaskBase64 = await fileToBase64(file);
+            const storagePath = `DIECUT_TEMPLATES/${baseName.replace(/\s/g, '_')}-${Date.now()}.png`;
+            const pngMask = await uploadDataUrlToStorage(pngMaskBase64, storagePath);
             await handleAdd(baseName, { pngMask });
         } else {
             alert('Unsupported file type. Please use SVG or PNG.');
@@ -47,7 +49,9 @@ const CutTemplatePanel: React.FC = () => {
         try {
             const images = await readImagesFromClipboard();
             if (images.length > 0) {
-                await handleAdd(baseName, { pngMask: images[0] });
+                const storagePath = `DIECUT_TEMPLATES/${baseName.replace(/\s/g, '_')}-${Date.now()}.png`;
+                const pngMask = await uploadDataUrlToStorage(images[0], storagePath);
+                await handleAdd(baseName, { pngMask });
                 return;
             }
         } catch {}

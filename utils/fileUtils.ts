@@ -1,3 +1,6 @@
+import { storage } from '../services/firebase';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+
 export const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -88,4 +91,14 @@ export const readImagesFromClipboard = async (): Promise<string[]> => {
         throw new Error("Could not read image from clipboard. Permission might be denied.");
     }
     return urls;
+};
+
+export const uploadDataUrlToStorage = async (dataUrl: string, path: string): Promise<string> => {
+    if (!dataUrl.startsWith('data:')) {
+        // If it's already a URL (e.g., from Firebase Storage), just return it.
+        return dataUrl;
+    }
+    const storageRef = ref(storage, path);
+    await uploadString(storageRef, dataUrl, 'data_url');
+    return getDownloadURL(storageRef);
 };

@@ -4,7 +4,7 @@ import Button from './common/Button';
 import Select from './common/Select';
 import { useTemplates } from '../hooks/useTemplates';
 import { renderCutPreviewOnCanvas } from '../utils/canvasUtils';
-import { readImagesFromClipboard, fileToBase64 } from '../utils/fileUtils';
+import { readImagesFromClipboard, fileToBase64, uploadDataUrlToStorage } from '../utils/fileUtils';
 
 interface CutColumnProps {
     artwork: string | null;
@@ -54,11 +54,12 @@ const CutColumn: React.FC<CutColumnProps> = ({ artwork, template, onTemplateChan
             if (file.type === "image/svg+xml" || file.name.endsWith('.svg')) {
                 newTemplateData.svgText = await file.text();
             } else if (file.type === "image/png") {
-                newTemplateData.pngMask = await fileToBase64(file);
+                const pngMaskBase64 = await fileToBase64(file);
+                const storagePath = `DIECUT_TEMPLATES/${file.name.replace(/\s/g, '_')}-${Date.now()}.png`;
+                newTemplateData.pngMask = await uploadDataUrlToStorage(pngMaskBase64, storagePath);
             }
             
             if (user.role === 'admin' || user.role === 'manager') {
-                // FIX: Await the addTemplate promise before passing it to onTemplateChange.
                 const newTemplate = await addTemplate(newTemplateData as any);
                 onTemplateChange(newTemplate);
             } else {
@@ -73,7 +74,6 @@ const CutColumn: React.FC<CutColumnProps> = ({ artwork, template, onTemplateChan
             const text = await navigator.clipboard.readText();
             if (text && /<svg[\s\S]*<\/svg>/i.test(text)) {
                  if (user.role === 'admin' || user.role === 'manager') {
-                    // FIX: Await the addTemplate promise before passing it to onTemplateChange.
                     const newTemplate = await addTemplate({ name: 'Pasted SVG', svgText: text });
                     onTemplateChange(newTemplate);
                 } else {
@@ -89,8 +89,9 @@ const CutColumn: React.FC<CutColumnProps> = ({ artwork, template, onTemplateChan
             const images = await readImagesFromClipboard();
             if (images.length > 0) {
                  if (user.role === 'admin' || user.role === 'manager') {
-                    // FIX: Await the addTemplate promise before passing it to onTemplateChange.
-                    const newTemplate = await addTemplate({ name: 'Pasted PNG Mask', pngMask: images[0] });
+                    const storagePath = `DIECUT_TEMPLATES/pasted-${Date.now()}.png`;
+                    const pngMaskUrl = await uploadDataUrlToStorage(images[0], storagePath);
+                    const newTemplate = await addTemplate({ name: 'Pasted PNG Mask', pngMask: pngMaskUrl });
                     onTemplateChange(newTemplate);
                 } else {
                     handlePersonalAdd({ name: 'Pasted PNG Mask', pngMask: images[0] });

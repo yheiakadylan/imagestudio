@@ -1,5 +1,24 @@
 import React, { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { db, auth } from '../services/firebase';
+import { db, auth, firebaseConfig } from '../services/firebase';
+import { initializeApp, deleteApp } from 'firebase/app';
+import {
+    collection,
+    getDocs,
+    doc,
+    getDoc,
+    setDoc,
+    updateDoc,
+    deleteDoc,
+    query,
+    where,
+} from 'firebase/firestore';
+import {
+    onAuthStateChanged,
+    signInWithEmailAndPassword,
+    signOut,
+    createUserWithEmailAndPassword,
+    getAuth,
+} from 'firebase/auth';
 
 export interface User {
     id: string;
@@ -15,6 +34,7 @@ interface AuthContextType {
     isLoading: boolean;
     login: (username: string, password: string) => Promise<void>;
     logout: () => Promise<void>;
+    signUp: (username: string, password: string) => Promise<void>;
     addUser: (newUser: Omit<User, 'id'>) => Promise<void>;
     updateUser: (userId: string, updates: Partial<User>) => Promise<void>;
     deleteUser: (userId: string) => Promise<void>;
@@ -26,6 +46,7 @@ export const AuthContext = createContext<AuthContextType>({
     isLoading: true,
     login: async () => {},
     logout: async () => {},
+    signUp: async () => {},
     addUser: async () => {},
     updateUser: async () => {},
     deleteUser: async () => {},
@@ -38,10 +59,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const loadAllUsers = useCallback(async () => {
         try {
-            // FIX: Use Firebase v8 syntax
-            const usersCollection = db.collection('users');
-            // FIX: Use Firebase v8 syntax
-            const querySnapshot = await usersCollection.get();
+            const usersCollection = collection(db, 'users');
+            const querySnapshot = await getDocs(usersCollection);
             const allUsers = querySnapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data(),
@@ -53,16 +72,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     }, []);
 
+    // Effect for handling auth state changes
     useEffect(() => {
-        // FIX: Use Firebase v8 syntax
-        const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
-                // FIX: Use Firebase v8 syntax
-                const userDocRef = db.collection('users').doc(firebaseUser.uid);
-                // FIX: Use Firebase v8 syntax
-                const userDocSnap = await userDocRef.get();
-                // FIX: Use Firebase v8 syntax (.exists is a property)
-                if (userDocSnap.exists) {
+                const userDocRef = doc(db, 'users', firebaseUser.uid);
+                const userDocSnap = await getDoc(userDocRef);
+                if (userDocSnap.exists()) {
                     const userData = userDocSnap.data();
                     setUser({
                         id: firebaseUser.uid,
@@ -70,13 +86,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                         role: userData?.role,
                         apiKeyId: userData?.apiKeyId,
                     });
-                    if (user?.role === 'admin' || user?.role === 'manager') {
-                        await loadAllUsers();
-                    }
                 } else {
                     // Auth user exists but no data in Firestore, sign them out.
-                    // FIX: Use Firebase v8 syntax
-                    await auth.signOut();
+                    await signOut(auth);
                     setUser(null);
                 }
             } else {
@@ -85,46 +97,82 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setIsLoading(false);
         });
         
-        // Initial load of all users for management panel
-        loadAllUsers();
-
         return () => unsubscribe();
-    }, [loadAllUsers, user?.role]);
+    }, []);
+
+    // Effect for loading all users when the current user has the appropriate role
+    useEffect(() => {
+        if (user?.role === 'admin' || user?.role === 'manager') {
+            loadAllUsers();
+        } else {
+            setUsers([]); // Clear user list if not an admin/manager
+        }
+    }, [user, loadAllUsers]);
 
     const login = useCallback(async (username: string, password: string) => {
         const email = `${username.toLowerCase()}@internal.app`;
-        // FIX: Use Firebase v8 syntax
-        await auth.signInWithEmailAndPassword(email, password);
+        await signInWithEmailAndPassword(auth, email, password);
         // onAuthStateChanged will handle setting the user state.
     }, []);
 
     const logout = useCallback(async () => {
-        // FIX: Use Firebase v8 syntax
-        await auth.signOut();
+        await signOut(auth);
         // onAuthStateChanged will handle clearing the user state.
     }, []);
 
-    const addUser = useCallback(async (newUser: Omit<User, 'id'>) => {
-        // FIX: Use Firebase v8 syntax
-        const q = db.collection('users').where("username", "==", newUser.username);
-        // FIX: Use Firebase v8 syntax
-        const querySnapshot = await q.get();
+    const signUp = useCallback(async (username: string, password: string) => {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where("username", "==", username));
+        const querySnapshot = await getDocs(q);
         if (!querySnapshot.empty) {
             throw new Error('Username already exists.');
         }
 
-        const email = `${newUser.username.toLowerCase()}@internal.app`;
-        // FIX: Use Firebase v8 syntax
-        const userCredential = await auth.createUserWithEmailAndPassword(email, newUser.password!);
+        const email = `${username.toLowerCase()}@internal.app`;
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const newFirebaseUser = userCredential.user;
 
         if (newFirebaseUser) {
-            const { password, ...userData } = newUser;
-            // FIX: Use Firebase v8 syntax
-            await db.collection('users').doc(newFirebaseUser.uid).set(userData);
-            await loadAllUsers();
+            const userData = {
+                username: username,
+                role: 'user', // Default role for new sign-ups
+                apiKeyId: '', // No key by default
+            };
+            await setDoc(doc(db, 'users', newFirebaseUser.uid), userData);
+            // onAuthStateChanged will handle setting the user state and logging them in.
         } else {
             throw new Error("Failed to create user account.");
+        }
+    }, []);
+
+    const addUser = useCallback(async (newUser: Omit<User, 'id'>) => {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where("username", "==", newUser.username));
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+            throw new Error('Username already exists.');
+        }
+        
+        // Create a temporary app instance to create user without signing them in on main app
+        const tempAppName = `temp-user-creation-${Date.now()}`;
+        const tempApp = initializeApp(firebaseConfig, tempAppName);
+        const tempAuth = getAuth(tempApp);
+
+        try {
+            const email = `${newUser.username.toLowerCase()}@internal.app`;
+            const userCredential = await createUserWithEmailAndPassword(tempAuth, email, newUser.password!);
+            const newFirebaseUser = userCredential.user;
+
+            if (newFirebaseUser) {
+                const { password, ...userData } = newUser;
+                await setDoc(doc(db, 'users', newFirebaseUser.uid), userData);
+                await loadAllUsers();
+            } else {
+                throw new Error("Failed to create user account.");
+            }
+        } finally {
+            // Clean up the temporary app to avoid memory leaks
+            await deleteApp(tempApp);
         }
     }, [loadAllUsers]);
 
@@ -132,8 +180,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // Admin cannot change password from client SDK, so we exclude it.
         const { password, ...firestoreUpdates } = updates; 
         
-        // FIX: Use Firebase v8 syntax
-        await db.collection('users').doc(userId).update(firestoreUpdates);
+        await updateDoc(doc(db, 'users', userId), firestoreUpdates);
 
         if (user?.id === userId) {
             setUser(prev => prev ? { ...prev, ...firestoreUpdates } : null);
@@ -148,12 +195,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         // This only deletes the Firestore record, not the Firebase Auth user,
         // which is a limitation of the client-side SDK for admin actions.
         // This will effectively disable the user in the app.
-        // FIX: Use Firebase v8 syntax
-        await db.collection('users').doc(userId).delete();
+        await deleteDoc(doc(db, 'users', userId));
         await loadAllUsers();
     }, [user, loadAllUsers]);
 
-    const value = { user, users, isLoading, login, logout, addUser, updateUser, deleteUser };
+    const value = { user, users, isLoading, login, logout, signUp, addUser, updateUser, deleteUser };
 
     return (
         <AuthContext.Provider value={value}>
