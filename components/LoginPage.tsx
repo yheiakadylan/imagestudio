@@ -68,12 +68,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onNavigateToSignUp }) => {
                         {isLoading ? 'Signing In...' : 'Sign In'}
                     </Button>
                 </form>
-                 <p className="text-sm text-gray-400 text-center mt-6">
-                    Don't have an account?{' '}
-                    <button onClick={onNavigateToSignUp} className="font-semibold text-blue-400 hover:text-blue-300 transition-colors bg-transparent border-none cursor-pointer">
-                        Sign Up
-                    </button>
-                </p>
+
             </div>
         </div>
     );

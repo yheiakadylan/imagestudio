@@ -1,5 +1,3 @@
-
-
 import React, { useState, useCallback } from 'react';
 import { ArtRef, Sample } from '../types';
 import Button from './common/Button';
@@ -9,6 +7,7 @@ import { fileToBase64, readImagesFromClipboard } from '../utils/fileUtils';
 import { ASPECT_RATIOS } from '../constants';
 import { useTemplates } from '../hooks/useTemplates';
 import ImageGrid from './common/ImageGrid';
+import Spinner from './common/Spinner';
 
 interface ArtColumnProps {
     artwork: string | null;
@@ -159,7 +158,7 @@ const ArtColumn: React.FC<ArtColumnProps> = ({
                 onDragOver={(e) => handleDragEvent(e, true, setIsDraggingArtwork)}
                 onDragLeave={(e) => handleDragEvent(e, false, setIsDraggingArtwork)}
                 onDrop={handleArtworkDrop}
-                className={`relative h-[34vh] min-h-[240px] flex items-center justify-center rounded-xl bg-[repeating-conic-gradient(#1a1a2e_0%_25%,#2a2a44_0%_50%)] bg-[0_0/20px_20px] border border-[#33334d] overflow-hidden animate-glow transition-all ${isDraggingArtwork ? 'border-2 border-dashed border-blue-500 bg-blue-500/10' : ''}`}
+                className={`relative group h-[34vh] min-h-[240px] flex items-center justify-center rounded-xl bg-[repeating-conic-gradient(#1a1a2e_0%_25%,#2a2a44_0%_50%)] bg-[0_0/20px_20px] border border-[#33334d] overflow-hidden animate-glow transition-all ${isDraggingArtwork ? 'border-2 border-dashed border-blue-500 bg-blue-500/10' : ''}`}
             >
                 {currentImage && <img src={currentImage} className="max-w-full max-h-full object-contain rounded-lg" alt="Artwork preview" />}
                  {!currentImage && (
@@ -170,9 +169,27 @@ const ArtColumn: React.FC<ArtColumnProps> = ({
                 )}
                 {previews.length > 1 && (
                     <>
-                        <Button variant="ghost" className="!p-2 !rounded-full absolute left-2" onClick={() => onCurrentIndexChange((currentIndex - 1 + previews.length) % previews.length)}>◀</Button>
-                        <Button variant="ghost" className="!p-2 !rounded-full absolute right-2" onClick={() => onCurrentIndexChange((currentIndex + 1) % previews.length)}>▶</Button>
-                        <div className="absolute right-2 bottom-2 bg-black/50 text-white text-xs px-2 py-1 rounded-full">{`${currentIndex + 1} / ${previews.length}`}</div>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onCurrentIndexChange((currentIndex - 1 + previews.length) % previews.length); }}
+                            className="absolute left-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60 focus:outline-none focus:ring-2 focus:ring-white"
+                            aria-label="Previous image"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                            </svg>
+                        </button>
+                        
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onCurrentIndexChange((currentIndex + 1) % previews.length); }}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full bg-black/40 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/60 focus:outline-none focus:ring-2 focus:ring-white"
+                            aria-label="Next image"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </button>
+                        
+                        <div className="absolute right-3 bottom-3 bg-black/60 text-white text-xs px-2 py-1 rounded-full">{`${currentIndex + 1} / ${previews.length}`}</div>
                     </>
                 )}
             </div>
@@ -195,7 +212,7 @@ const ArtColumn: React.FC<ArtColumnProps> = ({
             <TextArea placeholder="Describe the artwork..." value={prompt} onChange={e => setPrompt(e.target.value)} className="h-24" />
             <div className="flex items-center gap-2 mt-2">
                 <Button variant="ghost" onClick={() => onGenerate(prompt, count, aspectRatio)} disabled={isLoading || !prompt}>
-                    {isLoading ? 'Generating...' : 'Generate'}
+                    {isLoading ? <><Spinner className="mr-2"/> Generating...</> : 'Generate'}
                 </Button>
                 <Button variant="primary" onClick={() => onArtworkApply(previews[currentIndex])} disabled={previews.length === 0}>Apply</Button>
                 <div className="h-6 w-px bg-white/20 mx-1"></div>

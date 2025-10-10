@@ -64,10 +64,18 @@
         /* ===== 3 COLUMN LAYOUT ===== */
         .body{
           flex:1; display:grid; gap:14px; padding:14px;
-          grid-template-columns: 0.9fr 0.7fr 1.6fr;  /* Art | Cut | Mockup */
+          grid-template-columns: 0.8fr 0.6fr 1.8fr;  /* Art | Cut | Mockup */
           overflow:hidden;
         }
-        .col{ background:var(--panel-bg); border:1px solid var(--border-color); border-radius:14px; padding:14px; display:flex; flex-direction:column; min-height:0; backdrop-filter:blur(10px) }
+        .col{ 
+          background:var(--panel-bg); border:1px solid var(--border-color); border-radius:14px; 
+          padding:14px; display:flex; flex-direction:column; min-height:0; backdrop-filter:blur(10px);
+          transition: transform 0.3s ease, box-shadow 0.3s ease; 
+        }
+        .col:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 12px 24px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,.15);
+        }
         .col.art{ overflow:auto } /* scroll riêng cho art */
         .cap{ font-weight:800; margin:8px 0 6px; font-size:1.05rem }
         .max-w-5xl{max-width: 90%;}

@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -7,7 +6,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const Button: React.FC<ButtonProps> = ({ variant = 'primary', children, className = '', ...props }) => {
-    const baseClasses = "px-3.5 py-2.5 rounded-xl cursor-pointer font-bold border-none relative overflow-hidden transition-transform transform hover:-translate-y-px disabled:opacity-45 disabled:pointer-events-none disabled:cursor-not-allowed";
+    const baseClasses = "px-3.5 py-2.5 rounded-xl cursor-pointer font-bold border-none relative overflow-hidden transition-transform transform hover:-translate-y-px disabled:opacity-45 disabled:pointer-events-none disabled:cursor-not-allowed flex items-center justify-center";
     
     const variantClasses = {
         primary: 'bg-gradient-to-r from-[#6a11cb] to-[#2575fc] text-white shadow-lg shadow-blue-500/20',
