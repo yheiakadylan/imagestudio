@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { LogEntry } from '../types';
-import { db } from '../services/firebase';
+import { db, storage } from '../services/firebase';
 import {
     collection,
     query,
@@ -11,6 +11,7 @@ import {
     setDoc,
     writeBatch,
 } from 'firebase/firestore';
+import { ref, deleteObject } from 'firebase/storage';
 import { uploadDataUrlToStorage } from '../utils/fileUtils';
 
 
@@ -62,8 +63,12 @@ export function useImageLog() {
 
     const deleteResultsFromLog = useCallback(async (idsToDelete: string[]) => {
         if (idsToDelete.length === 0) return;
+
+        // Find the full log entries to get their dataUrl for storage deletion
+        const entriesToDelete = log.filter(entry => idsToDelete.includes(entry.id));
+        
         try {
-            // Use a batch write for efficient and atomic deletion
+            // Batch delete from Firestore first
             const batch = writeBatch(db);
             idsToDelete.forEach(id => {
                 const docRef = doc(db, COLLECTION_NAME, id);
@@ -71,12 +76,40 @@ export function useImageLog() {
             });
             await batch.commit();
             
-            // Optimistically update local state
+            // Then, delete corresponding files from Storage
+            const deletePromises = entriesToDelete.map(entry => {
+                if (entry.dataUrl && entry.dataUrl.includes('firebasestorage')) {
+                    try {
+                        // Create a reference from the download URL
+                        const storageRef = ref(storage, entry.dataUrl);
+                        return deleteObject(storageRef);
+                    } catch (e) {
+                        console.error("Could not create storage reference from URL:", entry.dataUrl, e);
+                        return Promise.resolve(); // Don't block other deletions
+                    }
+                }
+                return Promise.resolve();
+            });
+
+            // Wait for all deletions to settle, logging any errors
+            await Promise.allSettled(deletePromises).then(results => {
+                results.forEach((result, index) => {
+                    if (result.status === 'rejected') {
+                        const entry = entriesToDelete[index];
+                        // Don't log "object-not-found" as a critical error, it's a valid state.
+                        if (result.reason?.code !== 'storage/object-not-found') {
+                           console.error(`Failed to delete file from storage for log entry ${entry.id}:`, result.reason);
+                        }
+                    }
+                });
+            });
+
+            // Finally, update local state
             setLog(prevLog => prevLog.filter(result => !idsToDelete.includes(result.id)));
         } catch(error) {
-            console.error("Failed to delete items from Firestore log", error);
+            console.error("Failed to delete items from Firestore log:", error);
         }
-    }, []);
+    }, [log]);
     
     return { log, addResultToLog, deleteResultsFromLog };
 }
