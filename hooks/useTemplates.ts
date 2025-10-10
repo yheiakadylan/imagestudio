@@ -1,162 +1,80 @@
+
 import { useState, useEffect, useCallback } from 'react';
+import { db } from '../services/firebase';
+import { collection, query, orderBy, getDocs, addDoc, updateDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
+
 
 type BaseTemplate = { id: string; createdAt: number; };
 
-// --- IndexedDB Helper ---
-const DB_NAME = 'AIStudioTemplateDB';
-const DB_VERSION = 1;
-const IMAGE_STORES = ['SAMPLE_TEMPLATES', 'ARTREF_TEMPLATES', 'DIECUT_TEMPLATES'];
-
-let dbPromise: Promise<IDBDatabase> | null = null;
-
-const getDB = (): Promise<IDBDatabase> => {
-    if (!dbPromise) {
-        dbPromise = new Promise((resolve, reject) => {
-            const request = indexedDB.open(DB_NAME, DB_VERSION);
-            request.onerror = () => {
-                console.error("IndexedDB error:", request.error);
-                reject("Error opening IndexedDB");
-            };
-            request.onsuccess = () => resolve(request.result);
-            request.onupgradeneeded = (event) => {
-                const db = (event.target as IDBOpenDBRequest).result;
-                IMAGE_STORES.forEach(storeName => {
-                    if (!db.objectStoreNames.contains(storeName)) {
-                        db.createObjectStore(storeName, { keyPath: 'id' });
-                    }
-                });
-            };
-        });
-    }
-    return dbPromise;
-};
-
-const dbGetAll = async <T>(storeName: string): Promise<T[]> => {
-    const db = await getDB();
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(storeName, 'readonly');
-        const store = transaction.objectStore(storeName);
-        const request = store.getAll();
-        request.onerror = () => reject(`Error fetching from ${storeName}`);
-        request.onsuccess = () => resolve(request.result);
-    });
-};
-
-const dbPut = async <T>(storeName: string, item: T): Promise<void> => {
-    const db = await getDB();
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(storeName, 'readwrite');
-        const store = transaction.objectStore(storeName);
-        const request = store.put(item);
-        request.onerror = () => reject(`Error writing to ${storeName}`);
-        request.onsuccess = () => resolve();
-    });
-};
-
-const dbDelete = async (storeName: string, id: string): Promise<void> => {
-    const db = await getDB();
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(storeName, 'readwrite');
-        const store = transaction.objectStore(storeName);
-        const request = store.delete(id);
-        request.onerror = () => reject(`Error deleting from ${storeName}`);
-        request.onsuccess = () => resolve();
-    });
-};
-
-// Event to notify other hooks of changes
-const TEMPLATE_UPDATED_EVENT = 'template-store-updated';
-
-export function useTemplates<T extends BaseTemplate>(storageKey: string) {
+export function useTemplates<T extends BaseTemplate>(collectionName: string) {
     const [templates, setTemplates] = useState<T[]>([]);
-    const isImageStore = IMAGE_STORES.includes(storageKey);
 
     const loadTemplates = useCallback(async () => {
         try {
-            let items: T[];
-            if (isImageStore) {
-                items = await dbGetAll<T>(storageKey);
-            } else {
-                const stored = localStorage.getItem(storageKey);
-                items = stored ? JSON.parse(stored) : [];
-            }
-            setTemplates(Array.isArray(items) ? items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)) : []);
+            const q = query(collection(db, collectionName), orderBy('createdAt', 'desc'));
+            const querySnapshot = await getDocs(q);
+            const items = querySnapshot.docs.map(doc => {
+                const data = doc.data();
+                // Firestore returns createdAt as a Timestamp object, convert it to milliseconds
+                const createdAt = data.createdAt instanceof Timestamp ? data.createdAt.toMillis() : data.createdAt;
+                return { ...data, id: doc.id, createdAt } as T;
+            });
+            setTemplates(items);
         } catch (error) {
-            console.error(`Error reading ${storageKey}`, error);
+            console.error(`Error reading from collection ${collectionName}:`, error);
             setTemplates([]);
         }
-    }, [storageKey, isImageStore]);
+    }, [collectionName]);
 
     useEffect(() => {
         loadTemplates();
-
-        const handleUpdate = (event: Event) => {
-            const customEvent = event as CustomEvent;
-            if (customEvent.detail.storageKey === storageKey) {
-                loadTemplates();
-            }
-        };
-
-        window.addEventListener(TEMPLATE_UPDATED_EVENT, handleUpdate);
-        return () => {
-            window.removeEventListener(TEMPLATE_UPDATED_EVENT, handleUpdate);
-        };
-    }, [loadTemplates, storageKey]);
-
-    const dispatchUpdate = () => {
-        window.dispatchEvent(new CustomEvent(TEMPLATE_UPDATED_EVENT, { detail: { storageKey } }));
-    };
+    }, [loadTemplates]);
 
     const addTemplate = useCallback(async (newItemData: Omit<T, 'id' | 'createdAt'>): Promise<T> => {
-        const newItem = {
-            ...newItemData,
-            id: `${storageKey}-${Date.now()}`,
-            createdAt: Date.now()
-        } as T;
+        try {
+            const newItemWithTimestamp = {
+                ...newItemData,
+                createdAt: Date.now() // Use number (milliseconds) for consistency
+            };
+            const docRef = await addDoc(collection(db, collectionName), newItemWithTimestamp);
+            
+            const newItem = {
+                ...newItemData,
+                id: docRef.id,
+                createdAt: newItemWithTimestamp.createdAt
+            } as T;
+            
+            // Optimistic update in state
+            setTemplates(prev => [newItem, ...prev].sort((a, b) => b.createdAt - a.createdAt));
 
-        if (isImageStore) {
-            await dbPut(storageKey, newItem);
-        } else {
-            const currentTemplates = JSON.parse(localStorage.getItem(storageKey) || '[]');
-            localStorage.setItem(storageKey, JSON.stringify([newItem, ...currentTemplates]));
+            return newItem;
+        } catch (error) {
+            console.error(`Error adding to collection ${collectionName}:`, error);
+            throw error;
         }
-        dispatchUpdate();
-        return newItem;
-    }, [storageKey, isImageStore]);
+    }, [collectionName]);
 
-    const updateTemplate = useCallback(async (id: string, updates: Partial<T>) => {
-        let updatedItem: T | undefined;
-        // Use a functional update for `setTemplates` to ensure we have the latest state
-        setTemplates(currentTemplates => {
-            const newTemplates = currentTemplates.map(t => {
-                if (t.id === id) {
-                    updatedItem = { ...t, ...updates };
-                    return updatedItem;
-                }
-                return t;
-            });
-
-            if (updatedItem) {
-                if (isImageStore) {
-                    dbPut(storageKey, updatedItem);
-                } else {
-                    localStorage.setItem(storageKey, JSON.stringify(newTemplates));
-                }
-            }
-            return newTemplates;
-        });
-    }, [storageKey, isImageStore]);
+    const updateTemplate = useCallback(async (id: string, updates: Partial<Omit<T, 'id'>>) => {
+        try {
+            await updateDoc(doc(db, collectionName, id), updates);
+            // Optimistic update in state
+            setTemplates(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+        } catch (error) {
+            console.error(`Error updating document in ${collectionName}:`, error);
+            throw error;
+        }
+    }, [collectionName]);
 
     const deleteTemplate = useCallback(async (id: string) => {
-        if (isImageStore) {
-            await dbDelete(storageKey, id);
-        } else {
-            const currentTemplates = JSON.parse(localStorage.getItem(storageKey) || '[]');
-            const newTemplates = currentTemplates.filter((t: T) => t.id !== id);
-            localStorage.setItem(storageKey, JSON.stringify(newTemplates));
+        try {
+            await deleteDoc(doc(db, collectionName, id));
+            // Optimistic update in state
+            setTemplates(prev => prev.filter(t => t.id !== id));
+        } catch (error) {
+            console.error(`Error deleting from collection ${collectionName}:`, error);
+            throw error;
         }
-        dispatchUpdate();
-    }, [storageKey, isImageStore]);
+    }, [collectionName]);
 
     return { templates, addTemplate, updateTemplate, deleteTemplate };
 }

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useCallback } from 'react';
 import { ArtRef, Sample } from '../types';
 import Button from './common/Button';
@@ -127,7 +128,8 @@ const ArtColumn: React.FC<ArtColumnProps> = ({
         if (!files || files.length === 0) return;
         
         for (const file of Array.from(files)) {
-            if (file.type.startsWith('image/')) {
+            // FIX: Add type guard to ensure 'file' is a File object, resolving errors where 'file' was inferred as 'unknown'.
+            if (file instanceof File && file.type.startsWith('image/')) {
                 const dataUrl = await fileToBase64(file);
                 setter((prev: any[]) => [...prev, { id: `dnd-${Date.now()}-${Math.random()}`, name: file.name, dataUrl, createdAt: Date.now() }]);
             }

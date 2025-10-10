@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { CutTemplate, User } from '../types';
 import Button from './common/Button';
 import Select from './common/Select';
-import { useTemplates } from './hooks/useTemplates';
+import { useTemplates } from '../hooks/useTemplates';
 import { renderCutPreviewOnCanvas } from '../utils/canvasUtils';
 import { readImagesFromClipboard, fileToBase64 } from '../utils/fileUtils';
 

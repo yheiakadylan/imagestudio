@@ -21,52 +21,61 @@ const dataUrlToGeminiPart = (dataUrl: string): Part => {
 export const generateArtwork = async (prompt: string, aspectRatio: string, artRefs: string[] = [], count: number, apiKey: string): Promise<string[]> => {
     const ai = createAiClient(apiKey);
     
-    const parts: Part[] = [];
-    let textPrompt = '';
-
+    // @google/genai-sdk-upgrade: Use `imagen-4.0-generate-001` for text-to-image generation and `gemini-2.5-flash-image` for editing.
     if (artRefs.length > 0) {
-        parts.push(...artRefs.map(dataUrlToGeminiPart));
-        textPrompt = `Use the provided images as strong references for style and content. ${prompt}`;
-    } else {
-        textPrompt = `Generate a clean, high-resolution, print-ready artwork. No borders, no watermark, centered composition. ${prompt}`;
-    }
-    parts.push({ text: textPrompt });
-    
-    const config = {
-        responseModalities: [Modality.IMAGE, Modality.TEXT],
-        // @ts-ignore 
-        imageConfig: { aspectRatio },
-    };
-    
-    const generateSingleImage = async (): Promise<string> => {
-        const response: GenerateContentResponse = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image',
-            contents: { parts },
-            config,
-        });
-    
-        if (!response.candidates || response.candidates.length === 0) {
-             throw new Error("AI did not return any candidates. It might have refused the request.");
-        }
+        // Use gemini-2.5-flash-image for image editing/reference based generation
+        const parts: Part[] = [...artRefs.map(dataUrlToGeminiPart)];
+        const textPrompt = `Use the provided images as strong references for style and content. ${prompt}`;
+        parts.push({ text: textPrompt });
         
-        const candidate = response.candidates[0];
-        for (const part of candidate.content?.parts || []) {
-            if (part.inlineData) {
-                return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+        const config = {
+            responseModalities: [Modality.IMAGE, Modality.TEXT],
+        };
+        
+        const generateSingleImage = async (): Promise<string> => {
+            const response: GenerateContentResponse = await ai.models.generateContent({
+                model: 'gemini-2.5-flash-image',
+                contents: { parts },
+                config,
+            });
+        
+            if (!response.candidates || response.candidates.length === 0) {
+                 throw new Error("AI did not return any candidates. It might have refused the request.");
             }
-        }
+            
+            const candidate = response.candidates[0];
+            for (const part of candidate.content?.parts || []) {
+                if (part.inlineData) {
+                    return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+                }
+            }
+            
+            throw new Error("AI did not return an image in its response. It might have refused the request.");
+        };
         
-        throw new Error("AI did not return an image in its response. It might have refused the request.");
-    };
-    
-    // Create an array of promises, one for each image requested.
-    const promises: Promise<string>[] = [];
-    for (let i = 0; i < count; i++) {
-        promises.push(generateSingleImage());
-    }
+        const promises = Array.from({ length: count }, () => generateSingleImage());
+        return Promise.all(promises);
 
-    // Wait for all promises to resolve.
-    return Promise.all(promises);
+    } else {
+        // Use imagen-4.0-generate-001 for pure text-to-image generation
+        const textPrompt = `Generate a clean, high-resolution, print-ready artwork. No borders, no watermark, centered composition. ${prompt}`;
+        
+        const response = await ai.models.generateImages({
+            model: 'imagen-4.0-generate-001',
+            prompt: textPrompt,
+            config: {
+              numberOfImages: count,
+              aspectRatio: aspectRatio,
+              outputMimeType: 'image/png',
+            },
+        });
+
+        if (!response.generatedImages || response.generatedImages.length === 0) {
+            throw new Error("AI did not return any images. It might have refused the request.");
+        }
+
+        return response.generatedImages.map(img => `data:image/png;base64,${img.image.imageBytes}`);
+    }
 };
 
 export const generateMockup = async (prompt: string, aspectRatio: string, samples: string[], artwork: string, apiKey: string): Promise<string> => {
@@ -92,11 +101,9 @@ export const generateMockup = async (prompt: string, aspectRatio: string, sample
     const response: GenerateContentResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: { parts },
+        // FIX: Removed unsupported 'imageConfig' property for the 'gemini-2.5-flash-image' model.
         config: {
             responseModalities: [Modality.IMAGE, Modality.TEXT],
-            // Added imageConfig to respect the aspect ratio selection for mockups.
-            // @ts-ignore
-            imageConfig: { aspectRatio },
         },
     });
 

@@ -4,7 +4,7 @@ import Button from './common/Button';
 import Select from './common/Select';
 import TextArea from './common/TextArea';
 import { MOCKUP_ASPECT_RATIOS } from '../constants';
-import { useTemplates } from './hooks/useTemplates';
+import { useTemplates } from '../hooks/useTemplates';
 import { downloadDataUrl, upscale2xDataURL } from '../utils/fileUtils';
 import Spinner from './common/Spinner';
 import { SparkleInstance } from './common/Sparkle';
@@ -35,7 +35,8 @@ const MockupColumn: React.FC<MockupColumnProps> = ({
     const { templates: mockupTemplates } = useTemplates<Template>('TEMPLATES');
     
     const [contextMenu, setContextMenu] = useState<{ target: { logEntry: LogEntry, el: HTMLElement }; position: { x: number, y: number } } | null>(null);
-    const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    // FIX: Replaced NodeJS.Timeout with ReturnType<typeof setTimeout> for browser compatibility.
+    const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const parsedPrompts = useMemo((): MockupPrompt[] =>
         prompts.split('\n').map(p => p.trim()).filter(Boolean).map(p => ({ id: `prompt-${Math.random()}`, prompt: p }))
