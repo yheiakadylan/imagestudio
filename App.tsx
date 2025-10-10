@@ -11,7 +11,7 @@ import SettingsModal from './components/SettingsModal';
 import ImageLogModal from './components/ImageLogModal';
 import { Sparkle, SparkleInstance } from './components/common/Sparkle';
 import * as geminiService from './services/geminiService';
-import { downscaleDataUrl } from './utils/fileUtils';
+import { downscaleDataUrl, downloadDataUrl, upscale2xDataURL } from './utils/fileUtils';
 import { EXPAND_PROMPT_DEFAULT } from './constants';
 import { AuthContext } from './contexts/AuthContext';
 import { useImageLog } from './hooks/useImageLog';
@@ -210,6 +210,28 @@ const App: React.FC = () => {
         setExpandedNodes(nodes => nodes.filter(n => n.id !== id));
     };
 
+    const handleSaveAllExpanded = async () => {
+        if (expandedNodes.length === 0) {
+            showStatus('No expanded images to save.', 'info');
+            return;
+        }
+    
+        showStatus(`Saving ${expandedNodes.length} expanded image(s)...`, 'info');
+        let savedCount = 0;
+        try {
+            for (const node of expandedNodes) {
+                const dataToSave = isUpscaled ? await upscale2xDataURL(node.dataUrl) : node.dataUrl;
+                downloadDataUrl(dataToSave, `expanded-${node.ratioLabel}-${node.id.slice(-6)}.png`);
+                savedCount++;
+                // Add a small delay between downloads to prevent browser issues
+                await new Promise(res => setTimeout(res, 200));
+            }
+            showStatus(`Successfully saved ${savedCount} expanded image(s).`, 'ok');
+        } catch (error: any) {
+            showStatus(`Failed to save all expanded images: ${error.message}`, 'err');
+        }
+    };
+
     return (
         <div className="w-screen h-screen bg-[#0d0c1c] text-white flex flex-col font-sans overflow-hidden">
             <Sparkle ref={sparkleRef} />
@@ -257,6 +279,7 @@ const App: React.FC = () => {
                     sparkleRef={sparkleRef}
                     isUpscaled={isUpscaled}
                     onUpscaleChange={setIsUpscaled}
+                    onSaveAllExpanded={handleSaveAllExpanded}
                 />
             </main>
             

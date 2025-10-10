@@ -22,11 +22,12 @@ interface MockupColumnProps {
     sparkleRef: React.RefObject<SparkleInstance>;
     isUpscaled: boolean;
     onUpscaleChange: (enabled: boolean) => void;
+    onSaveAllExpanded: () => void;
 }
 
 const MockupColumn: React.FC<MockupColumnProps> = ({
     isLoading, progress, results, onGenerate, onCancel, onViewImage, onExpandImage, sparkleRef,
-    isUpscaled, onUpscaleChange
+    isUpscaled, onUpscaleChange, onSaveAllExpanded
 }) => {
     const [prompts, setPrompts] = useState('');
     const [count, setCount] = useState(1);
@@ -146,6 +147,7 @@ const MockupColumn: React.FC<MockupColumnProps> = ({
                     <div className="ml-auto flex items-center gap-3">
                         <ToggleSwitch enabled={isUpscaled} onChange={onUpscaleChange} label="Scale x2"/>
                         <Button variant="ghost" onClick={handleSaveAll} disabled={isLoading || mockupResults.length === 0 || !sku}>Save All</Button>
+                        <Button variant="ghost" onClick={onSaveAllExpanded} disabled={isLoading}>Save All Expanded</Button>
                     </div>
                 </div>
             </div>
