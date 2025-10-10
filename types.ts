@@ -53,6 +53,7 @@ export interface LogEntry {
     dataUrl: string;
     error?: string;
     createdAt: number;
+    ownerUid?: string;
 }
 
 export interface ExpandedNode {

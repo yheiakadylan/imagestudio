@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { LogEntry } from '../types';
+import { LogEntry, User } from '../types';
 import { db, storage } from '../services/firebase';
 import {
     collection,
@@ -10,6 +10,7 @@ import {
     doc,
     setDoc,
     writeBatch,
+    where,
 } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { uploadDataUrlToStorage } from '../utils/fileUtils';
@@ -17,13 +18,27 @@ import { uploadDataUrlToStorage } from '../utils/fileUtils';
 
 const COLLECTION_NAME = 'generation_log';
 
-export function useImageLog() {
+export function useImageLog(user: User | null) {
     const [log, setLog] = useState<LogEntry[]>([]);
 
     useEffect(() => {
         async function loadLog() {
+            if (!user) {
+                setLog([]);
+                return;
+            }
             try {
-                const q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'));
+                let q;
+                if (user.role === 'admin') {
+                    q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'));
+                } else {
+                    q = query(
+                        collection(db, COLLECTION_NAME), 
+                        where('ownerUid', '==', user.id), 
+                        orderBy('createdAt', 'desc')
+                    );
+                }
+                
                 const querySnapshot = await getDocs(q);
                 const storedLog = querySnapshot.docs.map(doc => {
                     const data = doc.data();
@@ -40,16 +55,25 @@ export function useImageLog() {
             }
         }
         loadLog();
-    }, []);
+    }, [user]);
 
-    const addResultToLog = useCallback(async (result: LogEntry) => {
+    const addResultToLog = useCallback(async (result: Omit<LogEntry, 'ownerUid'>) => {
+        if (!user) {
+            console.error("Cannot add log entry without a logged-in user.");
+            return;
+        }
+
         try {
             // Upload full-resolution image to Firebase Storage instead of downscaling.
             const storagePath = `generation_log/${result.id}.png`;
             const downloadUrl = await uploadDataUrlToStorage(result.dataUrl, storagePath);
 
-            // Prepare the log entry with the storage URL.
-            const resultForFirestore = { ...result, dataUrl: downloadUrl };
+            // Prepare the log entry with the storage URL and owner UID.
+            const resultForFirestore: LogEntry = {
+                ...result,
+                dataUrl: downloadUrl,
+                ownerUid: user.id
+            };
 
             // Save the log entry with the URL to Firestore.
             await setDoc(doc(db, COLLECTION_NAME, result.id), resultForFirestore);
@@ -59,7 +83,7 @@ export function useImageLog() {
         } catch (error) {
             console.error("Failed to add item to Firestore log", error);
         }
-    }, []);
+    }, [user]);
 
     const deleteResultsFromLog = useCallback(async (idsToDelete: string[]) => {
         if (idsToDelete.length === 0) return;

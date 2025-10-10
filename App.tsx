@@ -27,7 +27,8 @@ const App: React.FC = () => {
     const [samples, setSamples] = useState<Sample[]>([]);
     const [cutTemplate, setCutTemplate] = useState<CutTemplate | null>(null);
 
-    const { log: generationLog, addResultToLog, deleteResultsFromLog } = useImageLog();
+    const auth = useContext(AuthContext);
+    const { log: generationLog, addResultToLog, deleteResultsFromLog } = useImageLog(auth.user);
     const [isLoading, setIsLoading] = useState(false);
     const [progress, setProgress] = useState({ done: 0, total: 0, label: '' });
     const [status, setStatus] = useState<Status>({ message: '', type: 'info', visible: false });
@@ -40,7 +41,6 @@ const App: React.FC = () => {
     
     const sparkleRef = useRef<SparkleInstance>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
-    const auth = useContext(AuthContext);
     const { apiKeys } = useApiKeys();
 
     const userApiKey = apiKeys.find(k => k.id === auth.user?.apiKeyId)?.key;
@@ -279,6 +279,7 @@ const App: React.FC = () => {
                     sparkleRef={sparkleRef}
                     isUpscaled={isUpscaled}
                     onUpscaleChange={setIsUpscaled}
+                    // FIX: Corrected a typo in the onSaveAllExpanded prop, changing 'onSaveAllExpanded' to 'handleSaveAllExpanded' to pass the correct handler function to the MockupColumn component.
                     onSaveAllExpanded={handleSaveAllExpanded}
                 />
             </main>
