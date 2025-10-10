@@ -1,9 +1,6 @@
-
-// FIX: Updated Firebase import to use the scoped package '@firebase/app' to resolve module export errors.
-import { initializeApp, getApps } from "@firebase/app";
-import { getFirestore } from "firebase/firestore";
-// FIX: Updated Firebase import to use the scoped package '@firebase/auth' to resolve module export errors.
-import { getAuth } from "@firebase/auth";
+import firebase from 'firebase/app';
+import 'firebase/firestore';
+import 'firebase/auth';
 
 // The user's web app's Firebase configuration
 const firebaseConfig = {
@@ -17,8 +14,10 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
+if (firebase.apps.length === 0) {
+    firebase.initializeApp(firebaseConfig);
+}
 
 // Export services
-export const db = getFirestore(app);
-export const auth = getAuth(app);
+export const db = firebase.firestore();
+export const auth = firebase.auth();

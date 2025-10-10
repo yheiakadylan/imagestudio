@@ -1,7 +1,16 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { db } from '../services/firebase';
-import { collection, query, orderBy, getDocs, addDoc, updateDoc, deleteDoc, doc, Timestamp } from 'firebase/firestore';
+import {
+    collection,
+    query,
+    orderBy,
+    getDocs,
+    Timestamp,
+    addDoc,
+    doc,
+    updateDoc,
+    deleteDoc
+} from 'firebase/firestore';
 
 
 type BaseTemplate = { id: string; createdAt: number; };
