@@ -26,6 +26,7 @@ const App: React.FC = () => {
     const [artRefs, setArtRefs] = useState<ArtRef[]>([]);
     const [samples, setSamples] = useState<Sample[]>([]);
     const [cutTemplate, setCutTemplate] = useState<CutTemplate | null>(null);
+    const [currentMockups, setCurrentMockups] = useState<LogEntry[]>([]);
 
     const auth = useContext(AuthContext);
     const { log: generationLog, addResultToLog, deleteResultsFromLog } = useImageLog(auth.user);
@@ -41,7 +42,7 @@ const App: React.FC = () => {
     
     const sparkleRef = useRef<SparkleInstance>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
-    const { apiKeys } = useApiKeys();
+    const { apiKeys } = useApiKeys(auth.user);
 
     const userApiKey = apiKeys.find(k => k.id === auth.user?.apiKeyId)?.key;
 
@@ -124,6 +125,7 @@ const App: React.FC = () => {
             return;
         }
     
+        setCurrentMockups([]); // Clear previous results from the UI
         setIsLoading(true);
         const totalJobs = prompts.length * count;
         setProgress({ done: 0, total: totalJobs, label: 'Generating mockups...' });
@@ -147,10 +149,14 @@ const App: React.FC = () => {
                     try {
                         const resultUrl = await geminiService.generateMockup(prompt.prompt, aspectRatio, downscaledSamples, downscaledArtwork, userApiKey);
                         if (signal.aborted) throw new Error("Operation cancelled by user.");
-                        await addResultToLog({ id: resultId, type: 'mockup', prompt: prompt.prompt, dataUrl: resultUrl, createdAt: Date.now() });
+                        const newEntry: LogEntry = { id: resultId, type: 'mockup', prompt: prompt.prompt, dataUrl: resultUrl, createdAt: Date.now() };
+                        await addResultToLog(newEntry);
+                        setCurrentMockups(prev => [newEntry, ...prev]);
                     } catch (error: any) {
                         if (signal.aborted) throw new Error("Operation cancelled by user.");
-                        await addResultToLog({ id: resultId, type: 'mockup', prompt: prompt.prompt, dataUrl: '', error: error.message || 'Generation failed', createdAt: Date.now() });
+                        const newEntry: LogEntry = { id: resultId, type: 'mockup', prompt: prompt.prompt, dataUrl: '', error: error.message || 'Generation failed', createdAt: Date.now() };
+                        await addResultToLog(newEntry);
+                        setCurrentMockups(prev => [newEntry, ...prev]);
                     } finally {
                         if (!signal.aborted) {
                             jobsCompleted++;
@@ -261,6 +267,7 @@ const App: React.FC = () => {
                     isLoading={isLoading && progress.total === 0}
                     onGenerate={handleGenerateArt}
                     onCancel={handleCancel}
+                    user={auth.user}
                 />
                 <CutColumn
                     artwork={artwork}
@@ -271,7 +278,7 @@ const App: React.FC = () => {
                 <MockupColumn
                     isLoading={isLoading && progress.total > 0}
                     progress={progress}
-                    results={generationLog}
+                    results={currentMockups}
                     onGenerate={handleGenerateMockups}
                     onCancel={handleCancel}
                     onViewImage={setViewingImage}
@@ -279,8 +286,8 @@ const App: React.FC = () => {
                     sparkleRef={sparkleRef}
                     isUpscaled={isUpscaled}
                     onUpscaleChange={setIsUpscaled}
-                    // FIX: Corrected a typo in the onSaveAllExpanded prop, changing 'onSaveAllExpanded' to 'handleSaveAllExpanded' to pass the correct handler function to the MockupColumn component.
                     onSaveAllExpanded={handleSaveAllExpanded}
+                    user={auth.user}
                 />
             </main>
             

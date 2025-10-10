@@ -6,7 +6,7 @@ import { useApiKeys } from '../hooks/useApiKeys';
 
 const UserManagementPanel: React.FC = () => {
     const { user, users, addUser, updateUser, deleteUser } = useContext(AuthContext);
-    const { apiKeys } = useApiKeys();
+    const { apiKeys } = useApiKeys(user);
 
     const [editingUserId, setEditingUserId] = useState<string | null>(null);
     const [formState, setFormState] = useState({ username: '', password: '', role: 'user', apiKeyId: '' });

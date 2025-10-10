@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { ArtRef, Sample } from '../types';
+import { ArtRef, Sample, User } from '../types';
 import Button from './common/Button';
 import Select from './common/Select';
 import TextArea from './common/TextArea';
@@ -22,12 +22,13 @@ interface ArtColumnProps {
     isLoading: boolean;
     onGenerate: (prompt: string, count: number, aspectRatio: string) => void;
     onCancel: () => void;
+    user: User | null;
 }
 
 const ArtColumn: React.FC<ArtColumnProps> = ({
     artwork, previews, currentIndex, onCurrentIndexChange, onArtworkApply,
     artRefs, onArtRefsChange, samples, onSamplesChange,
-    isLoading, onGenerate, onCancel
+    isLoading, onGenerate, onCancel, user
 }) => {
     const [prompt, setPrompt] = useState('');
     const [count, setCount] = useState(1);

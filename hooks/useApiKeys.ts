@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ApiKey } from '../types';
+import { ApiKey, User } from '../types';
 import { db } from '../services/firebase';
 import {
     collection,
@@ -9,25 +9,43 @@ import {
     addDoc,
     doc,
     updateDoc,
-    deleteDoc
+    deleteDoc,
+    getDoc
 } from 'firebase/firestore';
 
 const COLLECTION_NAME = 'api_keys';
 
-export function useApiKeys() {
+export function useApiKeys(user: User | null) {
     const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
 
     const loadApiKeys = useCallback(async () => {
+        if (!user) {
+            setApiKeys([]);
+            return;
+        }
         try {
-            const q = query(collection(db, COLLECTION_NAME), orderBy('name', 'asc'));
-            const querySnapshot = await getDocs(q);
-            const items = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ApiKey));
-            setApiKeys(items);
+            if (user.role === 'admin') {
+                const q = query(collection(db, COLLECTION_NAME), orderBy('name', 'asc'));
+                const querySnapshot = await getDocs(q);
+                const items = querySnapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ApiKey));
+                setApiKeys(items);
+            } else if (user.apiKeyId) {
+                const docRef = doc(db, COLLECTION_NAME, user.apiKeyId);
+                const docSnap = await getDoc(docRef);
+                if (docSnap.exists()) {
+                    setApiKeys([{ ...docSnap.data(), id: docSnap.id } as ApiKey]);
+                } else {
+                    console.warn(`API key with ID ${user.apiKeyId} not found.`);
+                    setApiKeys([]);
+                }
+            } else {
+                setApiKeys([]);
+            }
         } catch (error) {
             console.error(`Error reading from collection ${COLLECTION_NAME}:`, error);
             setApiKeys([]);
         }
-    }, []);
+    }, [user]);
 
     useEffect(() => {
         loadApiKeys();

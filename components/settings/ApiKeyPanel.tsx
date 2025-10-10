@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import Button from '../common/Button';
 import { GoogleGenAI } from '@google/genai';
 import { useApiKeys } from '../../hooks/useApiKeys';
 import { ApiKey } from '../../types';
+import { AuthContext } from '../../contexts/AuthContext';
 
 const ApiKeyPanel: React.FC = () => {
-    const { apiKeys, addApiKey, deleteApiKey, updateApiKey } = useApiKeys();
+    // FIX: The useApiKeys hook requires the user object. Get it from AuthContext.
+    const auth = useContext(AuthContext);
+    const { apiKeys, addApiKey, deleteApiKey, updateApiKey } = useApiKeys(auth.user);
     const [newName, setNewName] = useState('');
     const [newKey, setNewKey] = useState('');
     const [testResults, setTestResults] = useState<Record<string, { message: string, type: 'info' | 'ok' | 'err' }>>({});

@@ -46,6 +46,7 @@ export const downscaleDataUrl = (dataUrl: string, maxDim: number = 1536): Promis
 export const upscale2xDataURL = (dataUrl: string): Promise<string> => {
     return new Promise((resolve, reject) => {
         const img = new Image();
+        img.crossOrigin = "anonymous";
         img.onload = () => {
             const w = img.naturalWidth || img.width;
             const h = img.naturalHeight || img.height;

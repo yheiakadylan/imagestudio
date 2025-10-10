@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Template, MockupPrompt, LogEntry } from '../types';
+import { Template, MockupPrompt, LogEntry, User } from '../types';
 import Button from './common/Button';
 import Select from './common/Select';
 import TextArea from './common/TextArea';
@@ -23,11 +23,12 @@ interface MockupColumnProps {
     isUpscaled: boolean;
     onUpscaleChange: (enabled: boolean) => void;
     onSaveAllExpanded: () => void;
+    user: User | null;
 }
 
 const MockupColumn: React.FC<MockupColumnProps> = ({
     isLoading, progress, results, onGenerate, onCancel, onViewImage, onExpandImage, sparkleRef,
-    isUpscaled, onUpscaleChange, onSaveAllExpanded
+    isUpscaled, onUpscaleChange, onSaveAllExpanded, user
 }) => {
     const [prompts, setPrompts] = useState('');
     const [count, setCount] = useState(1);
