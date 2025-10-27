@@ -51,6 +51,7 @@ export interface LogEntry {
     type: 'artwork' | 'mockup';
     prompt: string;
     dataUrl: string;
+    deleteUrl?: string;
     error?: string;
     createdAt: number;
     ownerUid?: string;

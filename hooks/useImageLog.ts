@@ -12,7 +12,6 @@ import {
     writeBatch,
     where,
 } from 'firebase/firestore';
-import { ref, deleteObject } from 'firebase/storage';
 import { uploadDataUrlToStorage } from '../utils/fileUtils';
 
 
@@ -33,18 +32,18 @@ export function useImageLog(user: User | null) {
                     q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'));
                 } else {
                     q = query(
-                        collection(db, COLLECTION_NAME), 
-                        where('ownerUid', '==', user.id), 
+                        collection(db, COLLECTION_NAME),
+                        where('ownerUid', '==', user.id),
                         orderBy('createdAt', 'desc')
                     );
                 }
-                
+
                 const querySnapshot = await getDocs(q);
                 const storedLog = querySnapshot.docs.map(doc => {
                     const data = doc.data();
                     // Convert Firestore Timestamp to milliseconds for consistency
-                    const createdAt = data.createdAt instanceof Timestamp 
-                        ? data.createdAt.toMillis() 
+                    const createdAt = data.createdAt instanceof Timestamp
+                        ? data.createdAt.toMillis()
                         : data.createdAt;
                     return { ...data, id: doc.id, createdAt } as LogEntry;
                 });
@@ -57,28 +56,25 @@ export function useImageLog(user: User | null) {
         loadLog();
     }, [user]);
 
-    const addResultToLog = useCallback(async (result: Omit<LogEntry, 'ownerUid'>) => {
+    const addResultToLog = useCallback(async (result: Omit<LogEntry, 'ownerUid' | 'deleteUrl'>) => {
         if (!user) {
             console.error("Cannot add log entry without a logged-in user.");
             return;
         }
 
         try {
-            // Upload full-resolution image to Firebase Storage instead of downscaling.
             const storagePath = `generation_log/${result.id}.png`;
-            const downloadUrl = await uploadDataUrlToStorage(result.dataUrl, storagePath);
+            // uploadDataUrlToStorage giờ trả về một object
+            const { downloadUrl, deleteUrl } = await uploadDataUrlToStorage(result.dataUrl, storagePath);
 
-            // Prepare the log entry with the storage URL and owner UID.
             const resultForFirestore: LogEntry = {
                 ...result,
                 dataUrl: downloadUrl,
+                deleteUrl: deleteUrl, // <-- Lưu URL xóa
                 ownerUid: user.id
             };
 
-            // Save the log entry with the URL to Firestore.
             await setDoc(doc(db, COLLECTION_NAME, result.id), resultForFirestore);
-            
-            // Optimistically update the local state with the new entry containing the URL.
             setLog(prevLog => [resultForFirestore, ...prevLog].sort((a, b) => b.createdAt - a.createdAt));
         } catch (error) {
             console.error("Failed to add item to Firestore log", error);
@@ -88,52 +84,34 @@ export function useImageLog(user: User | null) {
     const deleteResultsFromLog = useCallback(async (idsToDelete: string[]) => {
         if (idsToDelete.length === 0) return;
 
-        // Find the full log entries to get their dataUrl for storage deletion
         const entriesToDelete = log.filter(entry => idsToDelete.includes(entry.id));
-        
+
         try {
-            // Batch delete from Firestore first
             const batch = writeBatch(db);
             idsToDelete.forEach(id => {
                 const docRef = doc(db, COLLECTION_NAME, id);
                 batch.delete(docRef);
             });
             await batch.commit();
-            
-            // Then, delete corresponding files from Storage
+
+            // Xóa ảnh từ ImgBB
             const deletePromises = entriesToDelete.map(entry => {
-                if (entry.dataUrl && entry.dataUrl.includes('firebasestorage')) {
-                    try {
-                        // Create a reference from the download URL
-                        const storageRef = ref(storage, entry.dataUrl);
-                        return deleteObject(storageRef);
-                    } catch (e) {
-                        console.error("Could not create storage reference from URL:", entry.dataUrl, e);
-                        return Promise.resolve(); // Don't block other deletions
-                    }
+                if (entry.deleteUrl) {
+                    // ImgBB yêu cầu gửi request tới delete_url, nhưng nó có thể bị chặn bởi CORS
+                    // từ phía client. Một giải pháp tốt hơn là tạo một proxy server nhỏ.
+                    // Tuy nhiên, để đơn giản, chúng ta thử fetch trực tiếp.
+                    return fetch(entry.deleteUrl, { method: 'POST' }).catch(e => console.error("Could not delete from ImgBB:", e));
                 }
                 return Promise.resolve();
             });
 
-            // Wait for all deletions to settle, logging any errors
-            await Promise.allSettled(deletePromises).then(results => {
-                results.forEach((result, index) => {
-                    if (result.status === 'rejected') {
-                        const entry = entriesToDelete[index];
-                        // Don't log "object-not-found" as a critical error, it's a valid state.
-                        if (result.reason?.code !== 'storage/object-not-found') {
-                           console.error(`Failed to delete file from storage for log entry ${entry.id}:`, result.reason);
-                        }
-                    }
-                });
-            });
+            await Promise.allSettled(deletePromises);
 
-            // Finally, update local state
             setLog(prevLog => prevLog.filter(result => !idsToDelete.includes(result.id)));
-        } catch(error) {
+        } catch (error) {
             console.error("Failed to delete items from Firestore log:", error);
         }
     }, [log]);
-    
+
     return { log, addResultToLog, deleteResultsFromLog };
 }

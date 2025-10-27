@@ -1,6 +1,11 @@
-import { storage } from '../services/firebase';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
 
+interface ImgBBResponse {
+    data: {
+        url: string;
+        delete_url: string;
+    };
+    success: boolean;
+}
 export const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -94,12 +99,31 @@ export const readImagesFromClipboard = async (): Promise<string[]> => {
     return urls;
 };
 
-export const uploadDataUrlToStorage = async (dataUrl: string, path: string): Promise<string> => {
+export const uploadDataUrlToStorage = async (dataUrl: string, path: string): Promise<{ downloadUrl: string, deleteUrl: string }> => {
     if (!dataUrl.startsWith('data:')) {
-        // If it's already a URL (e.g., from Firebase Storage), just return it.
-        return dataUrl;
+        // Giả sử nếu không phải data URL, nó đã là một URL hợp lệ và không có URL xóa
+        return { downloadUrl: dataUrl, deleteUrl: '' };
     }
-    const storageRef = ref(storage, path);
-    await uploadString(storageRef, dataUrl, 'data_url');
-    return getDownloadURL(storageRef);
+
+    const apiKey = 'b6bb0a31526d06ad30a4cdf5f227e98d'; // <-- THAY BẰNG API KEY CỦA BẠN
+    const base64Data = dataUrl.split(',')[1];
+
+    const formData = new FormData();
+    formData.append('image', base64Data);
+
+    const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+        method: 'POST',
+        body: formData,
+    });
+
+    const result: ImgBBResponse = await response.json();
+
+    if (result.success) {
+        return {
+            downloadUrl: result.data.url,
+            deleteUrl: result.data.delete_url,
+        };
+    } else {
+        throw new Error('Failed to upload image to ImgBB');
+    }
 };
