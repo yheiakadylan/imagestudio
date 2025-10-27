@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { LogEntry, Status } from '../types';
+import React, { useState, useMemo, useEffect } from 'react';
+import { LogEntry, Status, User } from '../types';
 import Button from './common/Button';
 import { downloadDataUrl } from '../utils/fileUtils';
+import Select from './common/Select';
 
 interface ImageLogModalProps {
     isOpen: boolean;
@@ -9,10 +10,27 @@ interface ImageLogModalProps {
     results: LogEntry[];
     onDelete: (ids: string[]) => void;
     showStatus: (message: string, type: Status['type'], duration?: number) => void;
+    user: User | null;
+    allUsers: User[];
 }
 
-const ImageLogModal: React.FC<ImageLogModalProps> = ({ isOpen, onClose, results, onDelete, showStatus }) => {
+const ImageLogModal: React.FC<ImageLogModalProps> = ({ isOpen, onClose, results, onDelete, showStatus, user, allUsers }) => {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [selectedUserId, setSelectedUserId] = useState('all');
+
+    useEffect(() => {
+        // Clear selection when filter changes to avoid confusion
+        if (isOpen) {
+            setSelectedIds(new Set());
+        }
+    }, [selectedUserId, isOpen]);
+
+    const filteredResults = useMemo(() => {
+        if (user?.role === 'admin' && selectedUserId !== 'all') {
+            return results.filter(result => result.ownerUid === selectedUserId);
+        }
+        return results;
+    }, [results, user, selectedUserId]);
 
     if (!isOpen) return null;
 
@@ -48,7 +66,7 @@ const ImageLogModal: React.FC<ImageLogModalProps> = ({ isOpen, onClose, results,
     };
 
     const handleSelectAll = () => {
-        setSelectedIds(new Set(results.map(r => r.id)));
+        setSelectedIds(new Set(filteredResults.map(r => r.id)));
     };
 
     const handleDeselectAll = () => {
@@ -65,9 +83,27 @@ const ImageLogModal: React.FC<ImageLogModalProps> = ({ isOpen, onClose, results,
                 onClick={e => e.stopPropagation()}
             >
                 <header className="flex-shrink-0 flex items-center justify-between p-4 border-b border-white/10 flex-wrap gap-y-2">
-                    <h2 className="text-2xl font-bold">Image Generation Log</h2>
+                    <div className="flex items-center gap-4">
+                        <h2 className="text-2xl font-bold">Image Generation Log</h2>
+                        {user?.role === 'admin' && (
+                             <div className="flex items-center gap-2">
+                                <label htmlFor="user-filter" className="text-sm text-gray-400 flex-shrink-0">Filter:</label>
+                                <Select
+                                    id="user-filter"
+                                    value={selectedUserId}
+                                    onChange={(e) => setSelectedUserId(e.target.value)}
+                                    className="!py-1.5 !px-3 text-sm !w-auto"
+                                >
+                                    <option value="all">All Users</option>
+                                    {allUsers.map(u => (
+                                        <option key={u.id} value={u.id}>{u.username}</option>
+                                    ))}
+                                </Select>
+                            </div>
+                        )}
+                    </div>
                     <div className="flex items-center gap-3 flex-wrap">
-                        <Button variant="ghost" onClick={handleSelectAll} disabled={results.length === 0}>
+                        <Button variant="ghost" onClick={handleSelectAll} disabled={filteredResults.length === 0}>
                             Select All
                         </Button>
                         <Button variant="ghost" onClick={handleDeselectAll} disabled={selectedIds.size === 0}>
@@ -84,11 +120,11 @@ const ImageLogModal: React.FC<ImageLogModalProps> = ({ isOpen, onClose, results,
                 </header>
 
                 <main className="flex-1 overflow-y-auto p-4">
-                    {results.length === 0 ? (
-                        <p className="text-gray-400 text-center py-8">No images have been generated yet.</p>
+                    {filteredResults.length === 0 ? (
+                        <p className="text-gray-400 text-center py-8">No images have been generated for the selected filter.</p>
                     ) : (
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                            {results.map(result => (
+                            {filteredResults.map(result => (
                                 <div 
                                     key={result.id} 
                                     className={`relative aspect-square rounded-lg overflow-hidden bg-white/5 cursor-pointer group ${selectedIds.has(result.id) ? 'ring-4 ring-blue-500' : ''}`}

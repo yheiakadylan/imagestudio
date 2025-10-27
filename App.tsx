@@ -251,6 +251,8 @@ const App: React.FC = () => {
                 results={generationLog}
                 onDelete={deleteResultsFromLog}
                 showStatus={showStatus}
+                user={auth.user}
+                allUsers={auth.users}
             />
             
             <main className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3 p-3 min-h-0">

@@ -16,7 +16,7 @@ const Header: React.FC<HeaderProps> = ({ onSettingsClick, onImageLogClick }) => 
                 AI Image Studio
             </div>
             <div className="flex items-center gap-4">
-                <span className="text-sm text-gray-300">Welcome, {auth.user?.username || 'User'}! ({auth.user?.role})</span>
+                <span className="text-sm text-gray-300">Welcome, {auth.user?.username || 'User'}! </span>
                 <Button variant="ghost" onClick={onImageLogClick}>
                     Image Log
                 </Button>
