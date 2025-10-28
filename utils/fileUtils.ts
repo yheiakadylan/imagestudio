@@ -1,10 +1,14 @@
 
-interface ImgBBResponse {
+/*interface ImgBBResponse {
     data: {
         url: string;
         delete_url: string;
     };
     success: boolean;
+}*/
+interface CloudinaryResponse {
+    secure_url: string;
+    public_id: string;
 }
 export const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -99,31 +103,35 @@ export const readImagesFromClipboard = async (): Promise<string[]> => {
     return urls;
 };
 
-export const uploadDataUrlToStorage = async (dataUrl: string, path: string): Promise<{ downloadUrl: string, deleteUrl: string }> => {
+export const uploadDataUrlToStorage = async (dataUrl: string, path: string): Promise<{ downloadUrl: string, publicId: string }> => {
     if (!dataUrl.startsWith('data:')) {
-        // Giả sử nếu không phải data URL, nó đã là một URL hợp lệ và không có URL xóa
-        return { downloadUrl: dataUrl, deleteUrl: '' };
+        return { downloadUrl: dataUrl, publicId: '' };
     }
 
-    const apiKey = 'b6bb0a31526d06ad30a4cdf5f227e98d'; // <-- THAY BẰNG API KEY CỦA BẠN
-    const base64Data = dataUrl.split(',')[1];
+    // --- THAY THÔNG TIN CỦA BẠN VÀO ĐÂY ---
+    const CLOUD_NAME = 'dnqqtiazb';
+    const UPLOAD_PRESET = 'image_studio_unsigned';
+    // ------------------------------------
 
     const formData = new FormData();
-    formData.append('image', base64Data);
+    formData.append('file', dataUrl);
+    formData.append('upload_preset', UPLOAD_PRESET);
+    formData.append('folder', 'image_studio'); // (Tùy chọn) Tổ chức ảnh vào thư mục
 
-    const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
         method: 'POST',
         body: formData,
     });
 
-    const result: ImgBBResponse = await response.json();
+    const result: CloudinaryResponse = await response.json();
 
-    if (result.success) {
+    if (result.secure_url) {
         return {
-            downloadUrl: result.data.url,
-            deleteUrl: result.data.delete_url,
+            downloadUrl: result.secure_url,
+            publicId: result.public_id,
         };
     } else {
-        throw new Error('Failed to upload image to ImgBB');
+        console.error("Lỗi tải lên Cloudinary:", result);
+        throw new Error('Failed to upload image to Cloudinary');
     }
 };

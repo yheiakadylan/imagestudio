@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { LogEntry, User } from '../types';
-import { db, storage } from '../services/firebase';
+import { db } from '../services/firebase'; // storage không còn cần thiết
 import {
     collection,
     query,
@@ -56,7 +56,7 @@ export function useImageLog(user: User | null) {
         loadLog();
     }, [user]);
 
-    const addResultToLog = useCallback(async (result: Omit<LogEntry, 'ownerUid' | 'deleteUrl'>) => {
+    const addResultToLog = useCallback(async (result: Omit<LogEntry, 'ownerUid' | 'publicId' | 'deleteUrl'>) => {
         if (!user) {
             console.error("Cannot add log entry without a logged-in user.");
             return;
@@ -64,13 +64,13 @@ export function useImageLog(user: User | null) {
 
         try {
             const storagePath = `generation_log/${result.id}.png`;
-            // uploadDataUrlToStorage giờ trả về một object
-            const { downloadUrl, deleteUrl } = await uploadDataUrlToStorage(result.dataUrl, storagePath);
+            // Lấy về downloadUrl và publicId từ Cloudinary
+            const { downloadUrl, publicId } = await uploadDataUrlToStorage(result.dataUrl, storagePath);
 
             const resultForFirestore: LogEntry = {
                 ...result,
-                dataUrl: downloadUrl,
-                deleteUrl: deleteUrl, // <-- Lưu URL xóa
+                dataUrl: downloadUrl, // URL CDN siêu nhanh
+                publicId: publicId,   // ID để quản lý
                 ownerUid: user.id
             };
 
@@ -84,9 +84,8 @@ export function useImageLog(user: User | null) {
     const deleteResultsFromLog = useCallback(async (idsToDelete: string[]) => {
         if (idsToDelete.length === 0) return;
 
-        const entriesToDelete = log.filter(entry => idsToDelete.includes(entry.id));
-
         try {
+            // Chỉ xóa log khỏi Firestore, không xóa file trên Cloudinary từ client
             const batch = writeBatch(db);
             idsToDelete.forEach(id => {
                 const docRef = doc(db, COLLECTION_NAME, id);
@@ -94,24 +93,13 @@ export function useImageLog(user: User | null) {
             });
             await batch.commit();
 
-            // Xóa ảnh từ ImgBB
-            const deletePromises = entriesToDelete.map(entry => {
-                if (entry.deleteUrl) {
-                    // ImgBB yêu cầu gửi request tới delete_url, nhưng nó có thể bị chặn bởi CORS
-                    // từ phía client. Một giải pháp tốt hơn là tạo một proxy server nhỏ.
-                    // Tuy nhiên, để đơn giản, chúng ta thử fetch trực tiếp.
-                    return fetch(entry.deleteUrl, { method: 'POST' }).catch(e => console.error("Could not delete from ImgBB:", e));
-                }
-                return Promise.resolve();
-            });
-
-            await Promise.allSettled(deletePromises);
-
+            // Cập nhật lại state ở local
             setLog(prevLog => prevLog.filter(result => !idsToDelete.includes(result.id)));
         } catch (error) {
             console.error("Failed to delete items from Firestore log:", error);
         }
-    }, [log]);
+    }, []); // Bỏ `log` khỏi dependency array
 
     return { log, addResultToLog, deleteResultsFromLog };
+
 }
