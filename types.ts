@@ -16,6 +16,7 @@ export interface ArtRef {
     id: string;
     name: string;
     dataUrl: string;
+    publicId?: string;
     createdAt: number;
 }
 
@@ -23,6 +24,7 @@ export interface Sample {
     id: string;
     name: string;
     dataUrl: string;
+    publicId?: string;
     createdAt: number;
 }
 
@@ -32,6 +34,7 @@ export interface CutTemplate {
     createdAt: number;
     svgText?: string;
     pngMask?: string;
+    pngMaskPublicId?: string;
 }
 
 export interface Template {

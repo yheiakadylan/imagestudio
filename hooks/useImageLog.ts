@@ -12,7 +12,7 @@ import {
     writeBatch,
     where,
 } from 'firebase/firestore';
-import { uploadDataUrlToStorage } from '../utils/fileUtils';
+import { uploadDataUrlToStorage, deleteFromCloudinary } from '../utils/fileUtils';
 
 
 const COLLECTION_NAME = 'generation_log';
@@ -84,8 +84,23 @@ export function useImageLog(user: User | null) {
     const deleteResultsFromLog = useCallback(async (idsToDelete: string[]) => {
         if (idsToDelete.length === 0) return;
 
+        const entriesToDelete = log.filter(entry => idsToDelete.includes(entry.id));
+        const publicIdsToDelete = entriesToDelete.map(e => e.publicId).filter(Boolean) as string[];
+
+        // 1. Cố gắng xóa file trên Cloudinary trước
+        const cloudinaryDeletions = await Promise.allSettled(
+            publicIdsToDelete.map(pid => deleteFromCloudinary(pid))
+        );
+        
+        cloudinaryDeletions.forEach(result => {
+            if (result.status === 'rejected') {
+                console.error("Failed to delete an image from Cloudinary:", result.reason);
+                // Có thể thông báo cho người dùng ở đây nếu cần
+            }
+        });
+
+        // 2. Xóa log khỏi Firestore
         try {
-            // Chỉ xóa log khỏi Firestore, không xóa file trên Cloudinary từ client
             const batch = writeBatch(db);
             idsToDelete.forEach(id => {
                 const docRef = doc(db, COLLECTION_NAME, id);
@@ -93,12 +108,13 @@ export function useImageLog(user: User | null) {
             });
             await batch.commit();
 
-            // Cập nhật lại state ở local
+            // 3. Cập nhật lại state ở local
             setLog(prevLog => prevLog.filter(result => !idsToDelete.includes(result.id)));
         } catch (error) {
             console.error("Failed to delete items from Firestore log:", error);
+            throw error; // Ném lỗi để UI có thể bắt và xử lý
         }
-    }, []); // Bỏ `log` khỏi dependency array
+    }, [log]);
 
     return { log, addResultToLog, deleteResultsFromLog };
 

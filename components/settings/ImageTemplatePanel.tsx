@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useTemplates } from '../hooks/useTemplates';
 import { ArtRef, Sample } from '../../types';
 import Button from '../common/Button';
-import { fileToBase64, readImagesFromClipboard, uploadDataUrlToStorage } from '../../utils/fileUtils';
+import { fileToBase64, readImagesFromClipboard, uploadDataUrlToStorage, deleteFromCloudinary } from '../../utils/fileUtils';
 
 type ImageTemplate = ArtRef | Sample;
 
@@ -23,9 +23,9 @@ const ImageTemplatePanel = <T extends ImageTemplate>({ storageKey, title }: Imag
         for (let i = 0; i < dataUrls.length; i++) {
             const dataUrl = dataUrls[i];
             const storagePath = `${storageKey}/${baseName.replace(/\s/g, '_')}-${Date.now()}-${i}.png`;
-            const { downloadUrl } = await uploadDataUrlToStorage(dataUrl, storagePath);
+            const { downloadUrl, publicId } = await uploadDataUrlToStorage(dataUrl, storagePath);
             const templateName = dataUrls.length > 1 ? `${baseName} ${i + 1}` : baseName;
-            await addTemplate({ name: templateName, dataUrl: downloadUrl } as any);
+            await addTemplate({ name: templateName, dataUrl: downloadUrl, publicId } as any);
         }
         setName('');
     };
@@ -50,9 +50,16 @@ const ImageTemplatePanel = <T extends ImageTemplate>({ storageKey, title }: Imag
         }
     };
     
-    const handleDelete = (id: string) => {
-        if (window.confirm('Are you sure you want to delete this item?')) {
-            deleteTemplate(id);
+    const handleDelete = async (template: T) => {
+        if (window.confirm('Are you sure you want to delete this item? This will also delete the image from storage.')) {
+            try {
+                if (template.publicId) {
+                    await deleteFromCloudinary(template.publicId);
+                }
+                await deleteTemplate(template.id);
+            } catch (error: any) {
+                alert(`Failed to delete template: ${error.message}`);
+            }
         }
     };
     
@@ -97,7 +104,7 @@ const ImageTemplatePanel = <T extends ImageTemplate>({ storageKey, title }: Imag
                                 <p className="font-semibold text-sm truncate" title={template.name}>{template.name}</p>
                                 <div className="flex gap-2 mt-auto pt-2">
                                     <Button variant="ghost" className="!text-xs !px-2 !py-1" onClick={() => handleRename(template)}>Rename</Button>
-                                    <Button variant="warn" className="!text-xs !px-2 !py-1" onClick={() => handleDelete(template.id)}>Delete</Button>
+                                    <Button variant="warn" className="!text-xs !px-2 !py-1" onClick={() => handleDelete(template)}>Delete</Button>
                                 </div>
                             </div>
                         ))}

@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import { useTemplates } from '../hooks/useTemplates';
 import { CutTemplate } from '../../types';
 import Button from '../common/Button';
-import { fileToBase64, readImagesFromClipboard, uploadDataUrlToStorage } from '../../utils/fileUtils';
+import { fileToBase64, readImagesFromClipboard, uploadDataUrlToStorage, deleteFromCloudinary } from '../../utils/fileUtils';
 
 const CutTemplatePanel: React.FC = () => {
     const { templates, addTemplate, deleteTemplate, updateTemplate } = useTemplates<CutTemplate>('DIECUT_TEMPLATES');
     const [name, setName] = useState('');
 
-    const handleAdd = async (newName: string, data: { svgText?: string; pngMask?: string }) => {
+    const handleAdd = async (newName: string, data: Partial<Omit<CutTemplate, 'id' | 'createdAt' | 'name'>>) => {
         if (!newName.trim()) {
             alert('Template name is required.');
             return;
@@ -28,8 +28,8 @@ const CutTemplatePanel: React.FC = () => {
         } else if (file.type === "image/png") {
             const pngMaskBase64 = await fileToBase64(file);
             const storagePath = `DIECUT_TEMPLATES/${baseName.replace(/\s/g, '_')}-${Date.now()}.png`;
-            const { downloadUrl: pngMask } = await uploadDataUrlToStorage(pngMaskBase64, storagePath);
-            await handleAdd(baseName, { pngMask });
+            const { downloadUrl: pngMask, publicId } = await uploadDataUrlToStorage(pngMaskBase64, storagePath);
+            await handleAdd(baseName, { pngMask, pngMaskPublicId: publicId });
         } else {
             alert('Unsupported file type. Please use SVG or PNG.');
         }
@@ -50,16 +50,25 @@ const CutTemplatePanel: React.FC = () => {
             const images = await readImagesFromClipboard();
             if (images.length > 0) {
                 const storagePath = `DIECUT_TEMPLATES/${baseName.replace(/\s/g, '_')}-${Date.now()}.png`;
-                const { downloadUrl: pngMask } = await uploadDataUrlToStorage(images[0], storagePath);
-                await handleAdd(baseName, { pngMask });
+                const { downloadUrl: pngMask, publicId } = await uploadDataUrlToStorage(images[0], storagePath);
+                await handleAdd(baseName, { pngMask, pngMaskPublicId: publicId });
                 return;
             }
         } catch {}
         alert('No SVG or image found on clipboard.');
     };
 
-    const handleDelete = (id: string) => {
-        if (window.confirm('Are you sure?')) deleteTemplate(id);
+    const handleDelete = async (template: CutTemplate) => {
+        if (window.confirm('Are you sure? This will also delete the file from storage.')) {
+            try {
+                if (template.pngMaskPublicId) {
+                    await deleteFromCloudinary(template.pngMaskPublicId);
+                }
+                await deleteTemplate(template.id);
+            } catch (error: any) {
+                alert(`Failed to delete template: ${error.message}`);
+            }
+        }
     };
     
     const handleRename = (template: CutTemplate) => {
@@ -104,7 +113,7 @@ const CutTemplatePanel: React.FC = () => {
                                 <span className="text-xs text-gray-400">{t.svgText ? 'SVG' : 'PNG Mask'}</span>
                                 <div className="flex gap-2 mt-auto pt-2">
                                     <Button variant="ghost" className="!text-xs !px-2 !py-1" onClick={() => handleRename(t)}>Rename</Button>
-                                    <Button variant="warn" className="!text-xs !px-2 !py-1" onClick={() => handleDelete(t.id)}>Delete</Button>
+                                    <Button variant="warn" className="!text-xs !px-2 !py-1" onClick={() => handleDelete(t)}>Delete</Button>
                                 </div>
                             </div>
                         ))}

@@ -49,10 +49,14 @@ const ImageLogModal: React.FC<ImageLogModalProps> = ({ isOpen, onClose, results,
     const handleDeleteSelected = async () => {
         const count = selectedIds.size;
         if (count === 0) return;
-        if (window.confirm(`Are you sure you want to delete ${count} image(s)? This cannot be undone.`)) {
-            await onDelete(Array.from(selectedIds));
-            showStatus(`${count} image(s) deleted.`, 'ok');
-            setSelectedIds(new Set());
+        if (window.confirm(`Are you sure you want to delete ${count} image(s)? This will also delete them from storage and cannot be undone.`)) {
+            try {
+                await onDelete(Array.from(selectedIds));
+                showStatus(`${count} image(s) deleted.`, 'ok');
+                setSelectedIds(new Set());
+            } catch (error: any) {
+                showStatus(`Error deleting images: ${error.message}`, 'err', 5000);
+            }
         }
     };
 

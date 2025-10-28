@@ -10,6 +10,17 @@ interface CloudinaryResponse {
     secure_url: string;
     public_id: string;
 }
+// --- THAY THÔNG TIN CLOUDINARY CỦA BẠN VÀO ĐÂY ---
+// CẢNH BÁO: Việc để API Secret ở phía client là RẤT NGUY HIỂM. 
+// Bất kỳ ai cũng có thể xem mã nguồn và lấy cắp nó, dẫn đến việc họ có thể xóa toàn bộ ảnh của bạn.
+// Chỉ sử dụng cách này khi bạn hoàn toàn chắc chắn về môi trường của mình.
+const CLOUD_NAME = 'dnqqtiazb';
+const UPLOAD_PRESET = 'image_studio_unsigned';
+const API_KEY = '588397425159675'; // <-- THAY API KEY CỦA BẠN
+const API_SECRET = '1_FoUsnAm1mr_qjKxlAJvujan0I'; // <-- THAY API SECRET CỦA BẠN
+// ---------------------------------------------------
+
+
 export const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -107,11 +118,10 @@ export const uploadDataUrlToStorage = async (dataUrl: string, path: string): Pro
     if (!dataUrl.startsWith('data:')) {
         return { downloadUrl: dataUrl, publicId: '' };
     }
-
-    // --- THAY THÔNG TIN CỦA BẠN VÀO ĐÂY ---
-    const CLOUD_NAME = 'dnqqtiazb';
-    const UPLOAD_PRESET = 'image_studio_unsigned';
-    // ------------------------------------
+    
+    if (!CLOUD_NAME || !UPLOAD_PRESET) {
+        throw new Error("Cloudinary configuration (cloud name, upload preset) is missing.");
+    }
 
     const formData = new FormData();
     formData.append('file', dataUrl);
@@ -133,5 +143,48 @@ export const uploadDataUrlToStorage = async (dataUrl: string, path: string): Pro
     } else {
         console.error("Lỗi tải lên Cloudinary:", result);
         throw new Error('Failed to upload image to Cloudinary');
+    }
+};
+
+/**
+ * Generates a SHA1 hash for the Cloudinary deletion signature.
+ */
+async function sha1(str: string): Promise<string> {
+    const textAsBuffer = new TextEncoder().encode(str);
+    const hashBuffer = await window.crypto.subtle.digest('SHA-1', textAsBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hash;
+}
+
+/**
+ * Deletes an image from Cloudinary using the Admin API.
+ * Requires API Key and Secret to be configured.
+ */
+export const deleteFromCloudinary = async (publicId: string): Promise<void> => {
+    if (!API_KEY || !API_SECRET || !CLOUD_NAME) {
+        console.error("Cloudinary credentials for deletion are not configured. Skipping delete.");
+        return;
+    }
+
+    const timestamp = Math.round(new Date().getTime() / 1000);
+    const stringToSign = `public_id=${publicId}&timestamp=${timestamp}${API_SECRET}`;
+    const signature = await sha1(stringToSign);
+
+    const formData = new FormData();
+    formData.append('public_id', publicId);
+    formData.append('timestamp', String(timestamp));
+    formData.append('api_key', API_KEY);
+    formData.append('signature', signature);
+    
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/destroy`, {
+        method: 'POST',
+        body: formData,
+    });
+    
+    const result = await response.json();
+    if (result.result !== 'ok') {
+        console.error("Failed to delete from Cloudinary:", result);
+        throw new Error(`Cloudinary deletion failed for public_id: ${publicId}. Reason: ${result.error?.message || 'Unknown error'}`);
     }
 };
