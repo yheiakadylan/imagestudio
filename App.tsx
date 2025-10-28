@@ -182,20 +182,20 @@ const App: React.FC = () => {
         }
     };
 
-    const handleExpandImage = async (sourceLogEntry: LogEntry, ratio: string, sourceEl: HTMLElement) => {
+    const handleExpandImage = async (source: { id: string; dataUrl: string }, ratio: string, sourceEl: HTMLElement) => {
         if (!userApiKey) {
             showStatus('Your account does not have an API key assigned.', 'err');
             return;
         }
         showStatus('Expanding image...', 'info');
         try {
-            const downscaledSource = await downscaleDataUrl(sourceLogEntry.dataUrl);
+            const downscaledSource = await downscaleDataUrl(source.dataUrl);
             const [expandedUrl] = await geminiService.generateArtwork(EXPAND_PROMPT_DEFAULT, ratio, [downscaledSource], 1, userApiKey);
             const rect = sourceEl.getBoundingClientRect();
             
             const newNode: ExpandedNode = {
                 id: `expand-${Date.now()}`,
-                sourceId: sourceLogEntry.id,
+                sourceId: source.id,
                 dataUrl: expandedUrl,
                 ratioLabel: ratio,
                 position: { x: rect.right - 420, y: rect.top - 50 },
@@ -270,6 +270,10 @@ const App: React.FC = () => {
                     onGenerate={handleGenerateArt}
                     onCancel={handleCancel}
                     user={auth.user}
+                    onViewImage={setViewingImage}
+                    onExpandImage={handleExpandImage}
+                    sparkleRef={sparkleRef}
+                    isUpscaled={isUpscaled}
                 />
                 <CutColumn
                     artwork={artwork}

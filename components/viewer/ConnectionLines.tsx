@@ -19,7 +19,7 @@ const ConnectionLines: React.FC<ConnectionLinesProps> = ({ nodes }) => {
             const containerRect = document.body.getBoundingClientRect();
 
             nodes.forEach(node => {
-                const sourceEl = document.getElementById(`log-item-${node.sourceId}`);
+                const sourceEl = document.getElementById(node.sourceId);
                 const nodeEl = document.getElementById(`expanded-node-${node.id}`);
 
                 if (sourceEl && nodeEl) {

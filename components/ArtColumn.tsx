@@ -1,13 +1,15 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { ArtRef, Sample, User } from '../types';
 import Button from './common/Button';
 import Select from './common/Select';
 import TextArea from './common/TextArea';
-import { fileToBase64, readImagesFromClipboard } from '../utils/fileUtils';
+import { fileToBase64, readImagesFromClipboard, downloadDataUrl, upscale2xDataURL } from '../utils/fileUtils';
 import { ASPECT_RATIOS } from '../constants';
 import { useTemplates } from '../hooks/useTemplates';
 import ImageGrid from './common/ImageGrid';
 import Spinner from './common/Spinner';
+import ContextMenu from './common/ContextMenu';
+import { SparkleInstance } from './common/Sparkle';
 
 interface ArtColumnProps {
     artwork: string | null;
@@ -23,12 +25,17 @@ interface ArtColumnProps {
     onGenerate: (prompt: string, count: number, aspectRatio: string) => void;
     onCancel: () => void;
     user: User | null;
+    onViewImage: (url: string) => void;
+    onExpandImage: (source: { id: string, dataUrl: string }, ratio: string, sourceEl: HTMLElement) => void;
+    sparkleRef: React.RefObject<SparkleInstance>;
+    isUpscaled: boolean;
 }
 
 const ArtColumn: React.FC<ArtColumnProps> = ({
     artwork, previews, currentIndex, onCurrentIndexChange, onArtworkApply,
     artRefs, onArtRefsChange, samples, onSamplesChange,
-    isLoading, onGenerate, onCancel, user
+    isLoading, onGenerate, onCancel, user,
+    onViewImage, onExpandImage, sparkleRef, isUpscaled,
 }) => {
     const [prompt, setPrompt] = useState('');
     const [count, setCount] = useState(1);
@@ -36,6 +43,8 @@ const ArtColumn: React.FC<ArtColumnProps> = ({
     const [isDraggingArtwork, setIsDraggingArtwork] = useState(false);
     const [isDraggingArt, setIsDraggingArt] = useState(false);
     const [isDraggingSample, setIsDraggingSample] = useState(false);
+    const [contextMenu, setContextMenu] = useState<{ position: { x: number, y: number } } | null>(null);
+    const clickTimeoutRef = useRef<number | null>(null);
 
     const { templates: artRefTemplates } = useTemplates<ArtRef>('ARTREF_TEMPLATES');
     const { templates: sampleTemplates } = useTemplates<Sample>('SAMPLE_TEMPLATES');
@@ -151,6 +160,40 @@ const ArtColumn: React.FC<ArtColumnProps> = ({
 
     const currentImage = previews.length > 0 ? previews[currentIndex] : artwork;
 
+    const handleImageSave = async (e: React.MouseEvent<HTMLImageElement>) => {
+        e.preventDefault();
+        if (!currentImage) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        sparkleRef.current?.burst(rect.left + rect.width / 2, rect.top + rect.height / 2, 12);
+        const dataToSave = isUpscaled ? await upscale2xDataURL(currentImage) : currentImage;
+        downloadDataUrl(dataToSave, `artwork-${Date.now()}.png`);
+    };
+
+    const handleImageContextMenu = (e: React.MouseEvent<HTMLImageElement>) => {
+        e.preventDefault();
+        if (!currentImage) return;
+        setContextMenu({ position: { x: e.clientX, y: e.clientY } });
+    };
+
+    const handleImageClick = (e: React.MouseEvent<HTMLImageElement>) => {
+        if (!currentImage) return;
+
+        if (clickTimeoutRef.current) {
+            // Double click
+            clearTimeout(clickTimeoutRef.current);
+            clickTimeoutRef.current = null;
+            handleImageSave(e);
+        } else {
+            // Single click
+            clickTimeoutRef.current = window.setTimeout(() => {
+                if (currentImage) {
+                    onViewImage(currentImage);
+                }
+                clickTimeoutRef.current = null;
+            }, 300);
+        }
+    };
+
     return (
         <div className="bg-white/5 border border-white/10 rounded-2xl p-3.5 flex flex-col min-h-0 backdrop-blur-lg h-full overflow-y-auto">
             <h2 className="text-lg font-bold mb-2">Artwork</h2>
@@ -161,7 +204,17 @@ const ArtColumn: React.FC<ArtColumnProps> = ({
                 onDrop={handleArtworkDrop}
                 className={`relative group h-[34vh] min-h-[240px] flex items-center justify-center rounded-xl bg-[repeating-conic-gradient(#1a1a2e_0%_25%,#2a2a44_0%_50%)] bg-[0_0/20px_20px] border border-[#33334d] overflow-hidden animate-glow transition-all ${isDraggingArtwork ? 'border-2 border-dashed border-blue-500 bg-blue-500/10' : ''}`}
             >
-                {currentImage && <img src={currentImage} className="max-w-full max-h-full object-contain rounded-lg" alt="Artwork preview" />}
+                {currentImage && (
+                    <img 
+                        id="main-artwork-image"
+                        src={currentImage} 
+                        className="max-w-full max-h-full object-contain rounded-lg cursor-pointer" 
+                        alt="Artwork preview" 
+                        title="Click to View, Double Click to Save, Right Click to Expand"
+                        onClick={handleImageClick}
+                        onContextMenu={handleImageContextMenu}
+                    />
+                )}
                  {!currentImage && (
                     <div className="text-center text-gray-400 p-4 pointer-events-none">
                         <p className="font-bold text-lg">{isDraggingArtwork ? 'Drop to Apply!' : 'Set Artwork'}</p>
@@ -267,6 +320,21 @@ const ArtColumn: React.FC<ArtColumnProps> = ({
                 </div>
                 <ImageGrid items={samples} onItemsChange={onSamplesChange} />
             </div>
+            
+            {contextMenu && (
+                <ContextMenu
+                    position={contextMenu.position}
+                    onClose={() => setContextMenu(null)}
+                    onSelect={(ratio) => {
+                        const sourceEl = document.getElementById('main-artwork-image');
+                        if (currentImage && sourceEl) {
+                            const imageSource = { id: 'main-artwork-image', dataUrl: currentImage };
+                            onExpandImage(imageSource, ratio, sourceEl as HTMLElement);
+                        }
+                        setContextMenu(null);
+                    }}
+                />
+            )}
 
             <style>{`
                 @keyframes glow {

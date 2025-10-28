@@ -18,7 +18,7 @@ interface MockupColumnProps {
     onGenerate: (prompts: MockupPrompt[], count: number, aspectRatio: string) => void;
     onCancel: () => void;
     onViewImage: (url: string) => void;
-    onExpandImage: (logEntry: LogEntry, ratio: string, sourceEl: HTMLElement) => void;
+    onExpandImage: (source: { id: string, dataUrl: string }, ratio: string, sourceEl: HTMLElement) => void;
     sparkleRef: React.RefObject<SparkleInstance>;
     isUpscaled: boolean;
     onUpscaleChange: (enabled: boolean) => void;
@@ -37,8 +37,7 @@ const MockupColumn: React.FC<MockupColumnProps> = ({
     const { templates: mockupTemplates } = useTemplates<Template>('TEMPLATES');
     
     const [contextMenu, setContextMenu] = useState<{ target: { logEntry: LogEntry, el: HTMLElement }; position: { x: number, y: number } } | null>(null);
-    // FIX: Replaced NodeJS.Timeout with ReturnType<typeof setTimeout> for browser compatibility.
-    const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const clickTimeoutRef = useRef<number | null>(null);
 
     const parsedPrompts = useMemo((): MockupPrompt[] =>
         prompts.split('\n').map(p => p.trim()).filter(Boolean).map(p => ({ id: `prompt-${Math.random()}`, prompt: p }))
@@ -70,28 +69,27 @@ const MockupColumn: React.FC<MockupColumnProps> = ({
         }
     };
     
-    const handleImageClick = (e: React.MouseEvent<HTMLImageElement>, result: LogEntry) => {
+    const handleImageSave = async (e: React.MouseEvent<HTMLImageElement>, result: LogEntry) => {
         e.preventDefault();
-        
-        if (clickTimeoutRef.current) {
-            clearTimeout(clickTimeoutRef.current);
-        }
-
-        clickTimeoutRef.current = setTimeout(async () => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            sparkleRef.current?.burst(rect.left + rect.width / 2, rect.top + rect.height / 2, 12);
-            const dataToSave = isUpscaled ? await upscale2xDataURL(result.dataUrl) : result.dataUrl;
-            downloadDataUrl(dataToSave, `${result.type}-${result.id}.png`);
-        }, 300);
+        const rect = e.currentTarget.getBoundingClientRect();
+        sparkleRef.current?.burst(rect.left + rect.width / 2, rect.top + rect.height / 2, 12);
+        const dataToSave = isUpscaled ? await upscale2xDataURL(result.dataUrl) : result.dataUrl;
+        downloadDataUrl(dataToSave, `${result.type}-${result.id}.png`);
     };
 
-    const handleImageDoubleClick = (e: React.MouseEvent<HTMLImageElement>, result: LogEntry) => {
-        e.preventDefault();
+    const handleImageClick = (e: React.MouseEvent<HTMLImageElement>, result: LogEntry) => {
         if (clickTimeoutRef.current) {
+            // Double click
             clearTimeout(clickTimeoutRef.current);
             clickTimeoutRef.current = null;
+            handleImageSave(e, result);
+        } else {
+            // Single click
+            clickTimeoutRef.current = window.setTimeout(() => {
+                onViewImage(result.dataUrl);
+                clickTimeoutRef.current = null;
+            }, 300);
         }
-        onViewImage(result.dataUrl);
     };
 
     const handleImageContextMenu = (e: React.MouseEvent<HTMLImageElement>, result: LogEntry) => {
@@ -165,9 +163,8 @@ const MockupColumn: React.FC<MockupColumnProps> = ({
                                     src={result.dataUrl}
                                     alt="Generated mockup"
                                     className="max-w-full max-h-full object-contain rounded-lg cursor-pointer"
-                                    title="Click to Save, Double Click to View, Right Click to Expand"
+                                    title="Click to View, Double Click to Save, Right Click to Expand"
                                     onClick={(e) => handleImageClick(e, result)}
-                                    onDoubleClick={(e) => handleImageDoubleClick(e, result)}
                                     onContextMenu={(e) => handleImageContextMenu(e, result)}
                                 />
                             )}
@@ -181,7 +178,9 @@ const MockupColumn: React.FC<MockupColumnProps> = ({
                     onClose={() => setContextMenu(null)}
                     onSelect={(ratio) => {
                         if (contextMenu.target) {
-                            onExpandImage(contextMenu.target.logEntry, ratio, contextMenu.target.el);
+                            const { logEntry, el } = contextMenu.target;
+                            const source = { id: `log-item-${logEntry.id}`, dataUrl: logEntry.dataUrl };
+                            onExpandImage(source, ratio, el);
                         }
                         setContextMenu(null);
                     }}
