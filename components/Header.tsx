@@ -5,9 +5,10 @@ import Button from './common/Button';
 interface HeaderProps {
     onSettingsClick: () => void;
     onImageLogClick: () => void;
+    onImageEditorClick: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ onSettingsClick, onImageLogClick }) => {
+const Header: React.FC<HeaderProps> = ({ onSettingsClick, onImageLogClick, onImageEditorClick }) => {
     const auth = useContext(AuthContext);
 
     return (
@@ -17,6 +18,9 @@ const Header: React.FC<HeaderProps> = ({ onSettingsClick, onImageLogClick }) => 
             </div>
             <div className="flex items-center gap-4">
                 <span className="text-sm text-gray-300">Welcome, {auth.user?.username || 'User'}! </span>
+                <Button variant="ghost" onClick={onImageEditorClick}>
+                    Image Editor
+                </Button>
                 <Button variant="ghost" onClick={onImageLogClick}>
                     Image Log
                 </Button>

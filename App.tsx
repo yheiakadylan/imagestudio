@@ -17,6 +17,7 @@ import { AuthContext } from './contexts/AuthContext';
 import { useImageLog } from './hooks/useImageLog';
 import { useApiKeys } from './hooks/useApiKeys';
 import ConnectionLines from './components/viewer/ConnectionLines';
+import ImageEditor from './components/ImageEditor';
 
 
 const App: React.FC = () => {
@@ -38,6 +39,7 @@ const App: React.FC = () => {
     const [expandedNodes, setExpandedNodes] = useState<ExpandedNode[]>([]);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [isImageLogOpen, setIsImageLogOpen] = useState(false);
+    const [isImageEditorOpen, setIsImageEditorOpen] = useState(false);
     const [isUpscaled, setIsUpscaled] = useState(false);
     
     const sparkleRef = useRef<SparkleInstance>(null);
@@ -241,7 +243,11 @@ const App: React.FC = () => {
     return (
         <div className="w-screen h-screen bg-[#0d0c1c] text-white flex flex-col font-sans overflow-hidden">
             <Sparkle ref={sparkleRef} />
-            <Header onSettingsClick={() => setIsSettingsOpen(true)} onImageLogClick={() => setIsImageLogOpen(true)} />
+            <Header 
+                onSettingsClick={() => setIsSettingsOpen(true)} 
+                onImageLogClick={() => setIsImageLogOpen(true)}
+                onImageEditorClick={() => setIsImageEditorOpen(true)}
+            />
             <StatusToast status={status} />
             <ImageViewer imageUrl={viewingImage} onClose={() => setViewingImage(null)} />
             <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
@@ -253,6 +259,12 @@ const App: React.FC = () => {
                 showStatus={showStatus}
                 user={auth.user}
                 allUsers={auth.users}
+            />
+            <ImageEditor
+                isOpen={isImageEditorOpen}
+                onClose={() => setIsImageEditorOpen(false)}
+                showStatus={showStatus}
+                user={auth.user}
             />
             
             <main className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3 p-3 min-h-0">

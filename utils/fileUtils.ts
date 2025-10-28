@@ -1,4 +1,5 @@
 
+
 /*interface ImgBBResponse {
     data: {
         url: string;
@@ -187,4 +188,25 @@ export const deleteFromCloudinary = async (publicId: string): Promise<void> => {
         console.error("Failed to delete from Cloudinary:", result);
         throw new Error(`Cloudinary deletion failed for public_id: ${publicId}. Reason: ${result.error?.message || 'Unknown error'}`);
     }
+};
+
+const gcd = (a: number, b: number): number => b ? gcd(b, a % b) : a;
+
+export const getImageAspectRatio = (dataUrl: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            const w = img.naturalWidth;
+            const h = img.naturalHeight;
+            if (w > 0 && h > 0) {
+                const divisor = gcd(w, h);
+                resolve(`${w / divisor}:${h / divisor}`);
+            } else {
+                // Fallback for edge cases
+                resolve('1:1');
+            }
+        };
+        img.onerror = () => reject(new Error("Could not load image to determine aspect ratio."));
+        img.src = dataUrl;
+    });
 };
