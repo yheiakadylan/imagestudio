@@ -210,3 +210,33 @@ export const getImageAspectRatio = (dataUrl: string): Promise<string> => {
         img.src = dataUrl;
     });
 };
+
+
+export const downloadJson = (data: object, filename: string): void => {
+    const jsonStr = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+};
+
+export const readJsonFromFile = <T>(file: File): Promise<T> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsText(file, 'UTF-8');
+        reader.onload = (e) => {
+            try {
+                const result = JSON.parse(e.target?.result as string);
+                resolve(result as T);
+            } catch (error) {
+                reject(new Error("Failed to parse JSON file."));
+            }
+        };
+        reader.onerror = (error) => reject(error);
+    });
+};

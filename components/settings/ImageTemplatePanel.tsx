@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useTemplates } from '../hooks/useTemplates';
 import { ArtRef, Sample } from '../../types';
 import Button from '../common/Button';
-import { fileToBase64, readImagesFromClipboard, uploadDataUrlToStorage, deleteFromCloudinary } from '../../utils/fileUtils';
+import { fileToBase64, readImagesFromClipboard, uploadDataUrlToStorage, deleteFromCloudinary, downloadJson, readJsonFromFile } from '../../utils/fileUtils';
 
 type ImageTemplate = ArtRef | Sample;
 
@@ -70,6 +70,43 @@ const ImageTemplatePanel = <T extends ImageTemplate>({ storageKey, title }: Imag
         }
     };
 
+    const handleExport = () => {
+        if (templates.length === 0) {
+            alert('No templates to export.');
+            return;
+        }
+        const exportData = templates.map(({ id, createdAt, ...rest }) => rest);
+        const filename = `${storageKey.toLowerCase().replace('_', '-')}.json`;
+        downloadJson(exportData, filename);
+    };
+
+    const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        try {
+            const importedData = await readJsonFromFile<Omit<T, 'id' | 'createdAt'>[]>(file);
+            if (!Array.isArray(importedData)) {
+                throw new Error('Invalid format: JSON file should contain an array.');
+            }
+            
+            if (window.confirm(`This will import ${importedData.length} new template(s). Continue?`)) {
+                for (const item of importedData) {
+                    if (item.name && item.dataUrl) {
+                        await addTemplate(item as any);
+                    } else {
+                        console.warn('Skipping invalid item during import:', item);
+                    }
+                }
+                alert('Import successful!');
+            }
+        } catch (error: any) {
+            alert(`Import failed: ${error.message}`);
+        } finally {
+            e.target.value = '';
+        }
+    };
+
     return (
         <div>
             <h3 className="text-xl font-bold text-white mb-4">{title}</h3>
@@ -95,7 +132,14 @@ const ImageTemplatePanel = <T extends ImageTemplate>({ storageKey, title }: Imag
             </div>
             
             <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                <h4 className="font-bold mb-2">Saved Items ({templates.length})</h4>
+                <div className="flex justify-between items-center mb-2">
+                    <h4 className="font-bold">Saved Items ({templates.length})</h4>
+                    <div className="flex items-center gap-2">
+                        <Button variant="ghost" className="!text-xs !px-2 !py-1" onClick={() => document.getElementById(`${storageKey}-import-input`)?.click()}>Import</Button>
+                        <Button variant="ghost" className="!text-xs !px-2 !py-1" onClick={handleExport}>Export All</Button>
+                        <input type="file" id={`${storageKey}-import-input`} accept=".json" className="hidden" onChange={handleImport} />
+                    </div>
+                </div>
                  <div className="max-h-[45vh] overflow-y-auto pr-2">
                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {templates.map(template => (

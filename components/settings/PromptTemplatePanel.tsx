@@ -3,6 +3,7 @@ import { useTemplates } from '../hooks/useTemplates';
 import { Template } from '../../types';
 import Button from '../common/Button';
 import TextArea from '../common/TextArea';
+import { downloadJson, readJsonFromFile } from '../../utils/fileUtils';
 
 const PromptTemplatePanel: React.FC = () => {
     const { templates, addTemplate, updateTemplate, deleteTemplate } = useTemplates<Template>('TEMPLATES');
@@ -42,6 +43,43 @@ const PromptTemplatePanel: React.FC = () => {
         }
     }
 
+    const handleExport = () => {
+        if (templates.length === 0) {
+            alert('No templates to export.');
+            return;
+        }
+        const exportData = templates.map(({ id, createdAt, ...rest }) => rest);
+        downloadJson(exportData, 'mockup-prompts.json');
+    };
+
+    const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        try {
+            const importedData = await readJsonFromFile<Omit<Template, 'id' | 'createdAt'>[]>(file);
+            if (!Array.isArray(importedData)) {
+                throw new Error('Invalid format: JSON file should contain an array.');
+            }
+            
+            if (window.confirm(`This will import ${importedData.length} new prompt template(s). Continue?`)) {
+                for (const item of importedData) {
+                    if (item.name && item.prompt) {
+                        await addTemplate(item as any);
+                    } else {
+                        console.warn('Skipping invalid item during import:', item);
+                    }
+                }
+                alert('Import successful!');
+            }
+        } catch (error: any) {
+            alert(`Import failed: ${error.message}`);
+        } finally {
+            e.target.value = '';
+        }
+    };
+
+
     return (
         <div>
             <h3 className="text-xl font-bold text-white mb-4">Mockup Prompt Templates</h3>
@@ -75,7 +113,14 @@ const PromptTemplatePanel: React.FC = () => {
 
                 {/* List */}
                 <div className="bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col">
-                    <h4 className="font-bold mb-2">Saved Templates ({templates.length})</h4>
+                    <div className="flex justify-between items-center mb-2">
+                        <h4 className="font-bold">Saved Templates ({templates.length})</h4>
+                        <div className="flex items-center gap-2">
+                            <Button variant="ghost" className="!text-xs !px-2 !py-1" onClick={() => document.getElementById('prompt-template-import-input')?.click()}>Import</Button>
+                            <Button variant="ghost" className="!text-xs !px-2 !py-1" onClick={handleExport}>Export All</Button>
+                            <input type="file" id="prompt-template-import-input" accept=".json" className="hidden" onChange={handleImport} />
+                        </div>
+                    </div>
                     <div className="flex-1 overflow-y-auto pr-2 space-y-2">
                         {templates.map(template => (
                             <div key={template.id} className="bg-black/20 p-3 rounded-lg">
