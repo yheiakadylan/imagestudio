@@ -48,20 +48,30 @@ const CutColumn: React.FC<CutColumnProps> = ({ artwork, template, onTemplateChan
         input.onchange = async (e) => {
             const file = (e.target as HTMLInputElement).files?.[0];
             if (!file) return;
-            
+
+            const isPrivilegedUser = user.role === 'admin' || user.role === 'manager';
             let newTemplateData: Partial<CutTemplate> = { name: file.name };
 
             if (file.type === "image/svg+xml" || file.name.endsWith('.svg')) {
                 newTemplateData.svgText = await file.text();
             } else if (file.type === "image/png") {
                 const pngMaskBase64 = await fileToBase64(file);
-                const storagePath = `DIECUT_TEMPLATES/${file.name.replace(/\s/g, '_')}-${Date.now()}.png`;
-                newTemplateData.pngMask = await uploadDataUrlToStorage(pngMaskBase64, storagePath);
+                if (isPrivilegedUser) {
+                    // Upload to Cloudinary for privileged users saving a template
+                    const storagePath = `DIECUT_TEMPLATES/${file.name.replace(/\s/g, '_')}-${Date.now()}.png`;
+                    const { downloadUrl } = await uploadDataUrlToStorage(pngMaskBase64, storagePath);
+                    newTemplateData.pngMask = downloadUrl;
+                } else {
+                    // Use local base64 for personal (temporary) templates
+                    newTemplateData.pngMask = pngMaskBase64;
+                }
             }
             
-            if (user.role === 'admin' || user.role === 'manager') {
-                const newTemplate = await addTemplate(newTemplateData as any);
-                onTemplateChange(newTemplate);
+            if (isPrivilegedUser) {
+                 if (newTemplateData.svgText || newTemplateData.pngMask) {
+                    const newTemplate = await addTemplate(newTemplateData as any);
+                    onTemplateChange(newTemplate);
+                 }
             } else {
                 handlePersonalAdd(newTemplateData);
             }
@@ -70,10 +80,12 @@ const CutColumn: React.FC<CutColumnProps> = ({ artwork, template, onTemplateChan
     };
     
     const handlePaste = async () => {
+        const isPrivilegedUser = user.role === 'admin' || user.role === 'manager';
+        
         try {
             const text = await navigator.clipboard.readText();
             if (text && /<svg[\s\S]*<\/svg>/i.test(text)) {
-                 if (user.role === 'admin' || user.role === 'manager') {
+                 if (isPrivilegedUser) {
                     const newTemplate = await addTemplate({ name: 'Pasted SVG', svgText: text });
                     onTemplateChange(newTemplate);
                 } else {
@@ -88,10 +100,10 @@ const CutColumn: React.FC<CutColumnProps> = ({ artwork, template, onTemplateChan
         try {
             const images = await readImagesFromClipboard();
             if (images.length > 0) {
-                 if (user.role === 'admin' || user.role === 'manager') {
+                 if (isPrivilegedUser) {
                     const storagePath = `DIECUT_TEMPLATES/pasted-${Date.now()}.png`;
-                    const pngMaskUrl = await uploadDataUrlToStorage(images[0], storagePath);
-                    const newTemplate = await addTemplate({ name: 'Pasted PNG Mask', pngMask: pngMaskUrl });
+                    const { downloadUrl } = await uploadDataUrlToStorage(images[0], storagePath);
+                    const newTemplate = await addTemplate({ name: 'Pasted PNG Mask', pngMask: downloadUrl });
                     onTemplateChange(newTemplate);
                 } else {
                     handlePersonalAdd({ name: 'Pasted PNG Mask', pngMask: images[0] });

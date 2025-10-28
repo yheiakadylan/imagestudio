@@ -28,7 +28,7 @@ const CutTemplatePanel: React.FC = () => {
         } else if (file.type === "image/png") {
             const pngMaskBase64 = await fileToBase64(file);
             const storagePath = `DIECUT_TEMPLATES/${baseName.replace(/\s/g, '_')}-${Date.now()}.png`;
-            const pngMask = await uploadDataUrlToStorage(pngMaskBase64, storagePath);
+            const { downloadUrl: pngMask } = await uploadDataUrlToStorage(pngMaskBase64, storagePath);
             await handleAdd(baseName, { pngMask });
         } else {
             alert('Unsupported file type. Please use SVG or PNG.');
@@ -50,7 +50,7 @@ const CutTemplatePanel: React.FC = () => {
             const images = await readImagesFromClipboard();
             if (images.length > 0) {
                 const storagePath = `DIECUT_TEMPLATES/${baseName.replace(/\s/g, '_')}-${Date.now()}.png`;
-                const pngMask = await uploadDataUrlToStorage(images[0], storagePath);
+                const { downloadUrl: pngMask } = await uploadDataUrlToStorage(images[0], storagePath);
                 await handleAdd(baseName, { pngMask });
                 return;
             }

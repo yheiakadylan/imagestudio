@@ -23,7 +23,7 @@ const ImageTemplatePanel = <T extends ImageTemplate>({ storageKey, title }: Imag
         for (let i = 0; i < dataUrls.length; i++) {
             const dataUrl = dataUrls[i];
             const storagePath = `${storageKey}/${baseName.replace(/\s/g, '_')}-${Date.now()}-${i}.png`;
-            const downloadUrl = await uploadDataUrlToStorage(dataUrl, storagePath);
+            const { downloadUrl } = await uploadDataUrlToStorage(dataUrl, storagePath);
             const templateName = dataUrls.length > 1 ? `${baseName} ${i + 1}` : baseName;
             await addTemplate({ name: templateName, dataUrl: downloadUrl } as any);
         }
