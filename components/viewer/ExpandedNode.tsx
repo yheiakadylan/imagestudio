@@ -67,7 +67,6 @@ const ExpandedNode: React.FC<ExpandedNodeProps> = ({ node, onClose, onPositionCh
                 left: node.position.x,
                 top: node.position.y,
                 maxWidth: '420px',
-                maxHeight: '380px'
             }}
         >
             <header
@@ -84,7 +83,8 @@ const ExpandedNode: React.FC<ExpandedNodeProps> = ({ node, onClose, onPositionCh
                 <img
                     src={node.dataUrl}
                     alt={`Expanded view ${node.ratioLabel}`}
-                    className="max-w-full max-h-full object-contain rounded-b-lg cursor-zoom-in"
+                    className="max-w-full object-contain rounded-b-lg cursor-zoom-in"
+                    style={{ maxHeight: '300px' }}
                     onClick={() => onViewImage(node.dataUrl)}
                 />
             </div>
